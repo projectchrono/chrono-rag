@@ -24,6 +24,7 @@ class Document:
     chunk_type: str     # "class" | "function" | "file"
     chunk_name: str
     embedding: List[float] = field(default_factory=list)
+    answer: str = ""
 
 
 def clone_repo(url: str, dest: str) -> None:
