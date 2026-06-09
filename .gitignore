@@ -1,0 +1,5 @@
+.env
+*env/
+CLAUDE.md
+repos/
+__pycache__/

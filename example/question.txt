@@ -1,0 +1,57 @@
+Hi,
+
+I’m a graduate student currently using Project Chrono, through PyChrono, for vehicle simulation and fatigue analysis.
+
+The objective of my work is to obtain force and torque data from an HMMWV_Full simulation, performed on SCM terrain, and use these forces and torque as input for FEA analysis of the vehicle’s suspension components.
+
+In my investigation of the double wishbone suspension model, I noticed that the Upper and Lower Control Arms (UCA/LCA) are defined with two hardpoints on the chassis side (front and rear locations). However, in the Chrono model, this is represented with a single revolute joint.
+
+Currently, I am using the following code to obtain joint reaction forces:
+
+reaction = hmmwv.GetSystem().SearchLink("FrontSusp_revoluteUCA_L").GetReaction2()
+
+This provides the reaction force at a joint level, but I’m unsure how to interpret this in relation to the two physical hardpoint locations on the chassis.
+
+
+For context, here is a snippet of my baseline vehicle setup:
+
+vis_type = veh.VisualizationType_MESH
+chassis_collision_type = veh.CollisionType_NONE
+tire_model = veh.TireModelType_RIGID
+drive_type = veh.DrivelineTypeWV_AWD
+engine_model = veh.EngineModelType_SIMPLE
+transmission_model = veh.TransmissionModelType_AUTOMATIC_SIMPLE_MAP
+steering_type = veh.SteeringTypeWV_PITMAN_ARM
+contact_method = chrono.ChContactMethod_SMC
+
+step_size = 10e-3/2
+tire_step_size = step_size
+render_step_size = 1.0 / 20  # FPS = 50
+
+hmmwv = veh.HMMWV_Full()
+hmmwv.SetContactMethod(contact_method)
+hmmwv.SetChassisCollisionType(chassis_collision_type)
+hmmwv.SetChassisFixed(False)
+hmmwv.SetEngineType(engine_model)
+hmmwv.SetTransmissionType(transmission_model)
+hmmwv.SetDriveType(drive_type)
+hmmwv.SetSteeringType(steering_type)
+hmmwv.SetInitPosition(chrono.ChCoordsysd(initLoc, initRot))
+hmmwv.SetTireType(tire_model)
+hmmwv.SetTireStepSize(tire_step_size)
+hmmwv.Initialize()
+
+hmmwv.SetChassisVisualizationType(0)  # veh.VisualizationType_NONE
+hmmwv.SetSuspensionVisualizationType(vis_type)
+hmmwv.SetSteeringVisualizationType(vis_type)
+hmmwv.SetWheelVisualizationType(vis_type)
+hmmwv.SetTireVisualizationType(vis_type)
+
+hmmwv.GetSystem().SetCollisionSystemType(chrono.ChCollisionSystem.Type_BULLET)
+
+My questions are:
+
+Is there a standard method in Chrono to obtain forces at individual hardpoints (i.e., the front and rear chassis locations of the UCA/LCA), rather than at the joint level?
+If a UCA/LCA is represented with a single revolute joint, how should I interpret this force relative to the two chassis locations for FEA purposes? Is it reasonable to assume that the force can be evenly split?
+Are material properties considered in the forces transmitted through these locations in a Chrono vehicle model? If so, is there any documentation on the material properties used for this simulation? 
+Thank you very much for your time and for maintaining such a powerful simulation tool. I greatly appreciate any guidance you can provide.
