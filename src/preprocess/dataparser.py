@@ -190,3 +190,19 @@ def parse_repos(repos_dir: str) -> Generator[Document, None, None]:
         for abs_path in walk_path(pychrono_dir, rel_path, recursive):
             rel = os.path.relpath(abs_path, pychrono_dir)
             yield from parse_file(abs_path, rel, "pychrono-examples")
+
+
+def parse_example_pair(input_path: str, truth_path: str) -> Document:
+    with open(input_path, "r", encoding="utf-8") as fh:
+        prompt = fh.read()
+    with open(truth_path, "r", encoding="utf-8") as fh:
+        code = fh.read()
+    return Document(
+        content=prompt,
+        answer=code,
+        source_repo="example",
+        file_path=input_path,
+        language="text",
+        chunk_type="example",
+        chunk_name=os.path.basename(input_path),
+    )

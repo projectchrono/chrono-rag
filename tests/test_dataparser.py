@@ -245,3 +245,41 @@ def test_parse_repos_yields_documents(tmp_path):
 
     assert len(docs) >= 1
     assert all(hasattr(d, "content") for d in docs)
+
+from src.preprocess.dataparser import parse_example_pair
+
+def test_parse_example_pair_content_is_prompt(tmp_path):
+    inp = tmp_path / "input1.txt"
+    truth = tmp_path / "truth1.py"
+    inp.write_text("Develop a beam buckling simulation.")
+    truth.write_text("import pychrono as chrono\n")
+
+    doc = parse_example_pair(str(inp), str(truth))
+
+    assert doc.content == "Develop a beam buckling simulation."
+
+
+def test_parse_example_pair_answer_is_code(tmp_path):
+    inp = tmp_path / "input1.txt"
+    truth = tmp_path / "truth1.py"
+    inp.write_text("Develop a beam buckling simulation.")
+    truth.write_text("import pychrono as chrono\n")
+
+    doc = parse_example_pair(str(inp), str(truth))
+
+    assert doc.answer == "import pychrono as chrono\n"
+
+
+def test_parse_example_pair_metadata(tmp_path):
+    inp = tmp_path / "input1.txt"
+    truth = tmp_path / "truth1.py"
+    inp.write_text("Some prompt.")
+    truth.write_text("x = 1\n")
+
+    doc = parse_example_pair(str(inp), str(truth))
+
+    assert doc.source_repo == "example"
+    assert doc.language == "text"
+    assert doc.chunk_type == "example"
+    assert doc.chunk_name == "input1.txt"
+    assert doc.file_path == str(inp)
