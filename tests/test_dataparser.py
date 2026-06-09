@@ -283,3 +283,21 @@ def test_parse_example_pair_metadata(tmp_path):
     assert doc.chunk_type == "example"
     assert doc.chunk_name == "input1.txt"
     assert doc.file_path == str(inp)
+
+
+from src.preprocess.dataparser import parse_example_pairs
+
+def test_parse_example_pairs_returns_one_doc_per_pair(tmp_path):
+    pairs = []
+    for i in range(3):
+        inp = tmp_path / f"input{i}.txt"
+        truth = tmp_path / f"truth{i}.py"
+        inp.write_text(f"Prompt {i}")
+        truth.write_text(f"code_{i} = True\n")
+        pairs.append((str(inp), str(truth)))
+
+    docs = parse_example_pairs(pairs)
+
+    assert len(docs) == 3
+    assert docs[0].content == "Prompt 0"
+    assert docs[2].answer == "code_2 = True\n"

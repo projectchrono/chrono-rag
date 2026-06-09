@@ -206,3 +206,7 @@ def parse_example_pair(input_path: str, truth_path: str) -> Document:
         chunk_type="example",
         chunk_name=os.path.basename(input_path),
     )
+
+
+def parse_example_pairs(pairs: List[tuple]) -> List[Document]:
+    return [parse_example_pair(inp, truth) for inp, truth in pairs]
