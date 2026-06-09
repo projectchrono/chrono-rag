@@ -15,6 +15,17 @@ def test_document_defaults():
     assert doc.content == "hello"
     assert doc.embedding == []
 
+def test_document_answer_defaults_to_empty_string():
+    doc = Document(
+        content="hello",
+        source_repo="chrono",
+        file_path="src/foo.py",
+        language="py",
+        chunk_type="function",
+        chunk_name="my_func",
+    )
+    assert doc.answer == ""
+
 def test_clone_repo_skips_if_exists(tmp_path):
     dest = str(tmp_path / "existing")
     os.makedirs(dest)
