@@ -35,6 +35,7 @@ def upsert_documents(documents: List[Document]) -> None:
                 "chunk_type": doc.chunk_type,
                 "chunk_name": doc.chunk_name,
                 "content": doc.content,
+                "answer": doc.answer,
                 "embedding": doc.embedding,
             }},
             upsert=True,

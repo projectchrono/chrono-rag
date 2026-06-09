@@ -64,3 +64,23 @@ def test_upsert_documents_sets_embedding():
 
     set_arg = mock_collection.update_one.call_args[0][1]["$set"]
     assert set_arg["embedding"] == [0.1] * 1536
+
+
+def test_upsert_documents_stores_answer():
+    doc = Document(
+        content="Develop a beam buckling simulation.",
+        source_repo="example",
+        file_path="example/input1.txt",
+        language="text",
+        chunk_type="example",
+        chunk_name="input1.txt",
+        embedding=[0.1] * 1536,
+        answer="import pychrono as chrono\n",
+    )
+    mock_client, mock_collection = _mock_mongo()
+
+    with patch("src.preprocess.vectorstore.MongoClient", return_value=mock_client):
+        upsert_documents([doc])
+
+    set_arg = mock_collection.update_one.call_args[0][1]["$set"]
+    assert set_arg["answer"] == "import pychrono as chrono\n"
