@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.preprocess.dataparser import parse_repos
-from src.preprocess.embeddings import generate_embeddings
-from src.preprocess.vectorstore import create_vector_search_index, upsert_documents
+from preprocess.dataparser import parse_repos
+from preprocess.embeddings import generate_embeddings
+from preprocess.vectorstore import create_vector_search_index, upsert_documents
 
 _REPOS_DIR = os.getenv(
     "REPOS_DIR",

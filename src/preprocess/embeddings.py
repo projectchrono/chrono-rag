@@ -8,7 +8,7 @@ from typing import List
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 
-from src.preprocess.dataparser import Document
+from preprocess.dataparser import Document
 
 load_dotenv()
 
