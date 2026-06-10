@@ -50,6 +50,7 @@ def search(query: str, top_k: int = _TOP_K) -> str:
                 "score": {"$meta": "vectorSearchScore"},
             }
         },
+        {"$match": {"score": {"$gte": 0.75}}}
     ])
 
     chunks = list(results)
