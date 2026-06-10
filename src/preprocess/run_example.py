@@ -2,7 +2,7 @@
 Entry point for indexing (prompt, code) example pairs into MongoDB.
 
 To add more pairs, append to PAIRS below.
-Paths are relative to the repo root.
+Paths in PAIRS are relative to this file's directory (src/preprocess/).
 """
 from __future__ import annotations
 
