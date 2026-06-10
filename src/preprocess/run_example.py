@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.preprocess.dataparser import parse_example_pairs
-from src.preprocess.embeddings import generate_embeddings
-from src.preprocess.vectorstore import create_vector_search_index, upsert_documents
+from preprocess.dataparser import parse_example_pairs
+from preprocess.embeddings import generate_embeddings
+from preprocess.vectorstore import create_vector_search_index, upsert_documents
 
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
