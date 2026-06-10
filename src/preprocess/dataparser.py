@@ -8,11 +8,15 @@ Repos:
 from __future__ import annotations
 
 import ast
+import mailbox
 import os
 import re
 import subprocess
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Generator, List
+from email.header import decode_header as _decode_header
+from email.utils import parsedate_to_datetime
+from typing import Generator, List, Optional
 
 
 @dataclass
@@ -210,3 +214,84 @@ def parse_example_pair(input_path: str, truth_path: str) -> Document:
 
 def parse_example_pairs(pairs: List[tuple]) -> List[Document]:
     return [parse_example_pair(inp, truth) for inp, truth in pairs]
+
+
+# ---------------------------------------------------------------------------
+# mbox / mailing-list parser
+# ---------------------------------------------------------------------------
+
+def _decode_str(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    parts = []
+    for fragment, charset in _decode_header(value):
+        if isinstance(fragment, bytes):
+            parts.append(fragment.decode(charset or "utf-8", errors="replace"))
+        else:
+            parts.append(fragment)
+    return "".join(parts)
+
+
+def _extract_plain_body(msg) -> str:
+    """Return decoded text/plain body, preferring the first such part."""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain" and not part.get_filename():
+                payload = part.get_payload(decode=True)
+                charset = part.get_content_charset() or "utf-8"
+                return payload.decode(charset, errors="replace")
+        return ""
+    if msg.get_content_type() == "text/plain":
+        payload = msg.get_payload(decode=True)
+        charset = msg.get_content_charset() or "utf-8"
+        return payload.decode(charset, errors="replace") if payload else ""
+    return ""
+
+
+def _msg_date(msg) -> float:
+    try:
+        return parsedate_to_datetime(msg["Date"]).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _format_thread(messages: list) -> str:
+    parts = []
+    for msg in messages:
+        sender = _decode_str(msg["From"])
+        date = msg["Date"] or ""
+        body = _extract_plain_body(msg).strip()
+        parts.append(f"--- {sender} ({date}) ---\n{body}")
+    return "\n\n".join(parts)
+
+
+def parse_mbox(mbox_path: str) -> Generator[Document, None, None]:
+    """Parse an mbox file and yield one Document per email thread."""
+    mb = mailbox.mbox(mbox_path, create=False)
+
+    # Group message objects by Gmail thread ID, falling back to Message-Id.
+    threads: dict[str, list] = defaultdict(list)
+    subjects: dict[str, str] = {}
+
+    for msg in mb:
+        thread_id = msg.get("X-GM-THRID") or msg.get("Message-Id") or "unknown"
+        threads[thread_id].append(msg)
+        if thread_id not in subjects:
+            raw_subject = _decode_str(msg.get("Subject", ""))
+            # Strip reply prefixes to get the canonical subject
+            subjects[thread_id] = re.sub(r"^(Re|RE|Fwd|FW):\s*(\[.*?\]\s*)?", "", raw_subject).strip()
+
+    for thread_id, messages in threads.items():
+        messages.sort(key=_msg_date)
+        subject = subjects.get(thread_id, "unknown")
+        question = f"Subject: {subject}\n\n{_format_thread(messages[:1])}"
+        answers = _format_thread(messages[1:]) if len(messages) > 1 else ""
+        yield Document(
+            content=question,
+            answer=answers,
+            source_repo="mailing-list",
+            file_path=f"mbox://thread/{thread_id}",
+            language="text",
+            chunk_type="thread",
+            chunk_name=subject,
+        )
