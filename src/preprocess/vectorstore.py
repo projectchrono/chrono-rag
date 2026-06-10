@@ -13,7 +13,7 @@ from pymongo import MongoClient
 
 from src.preprocess.dataparser import Document
 
-_MONGO_URI = "mongodb://localhost:27017"
+_MONGO_URI = "mongodb://localhost:27017/?directConnection=true"
 _DB_NAME = "chrono_rag"
 _COLLECTION_NAME = "chunks"
 
