@@ -13,8 +13,10 @@ _TOP_K = 5
 
 _SYSTEM_PROMPT = """
     You are an expert in Chrono and PyChrono, the physics-based simulation libraries. "
-    "Answer the user's question using only the provided context from the codebase. "
-    "If the context does not contain enough information, say so clearly.
+    "Answer the user's question using only the provided `retrieved_data` from the vector store. "
+    Explain the user by analysing the `retrieved_data` and the `user_query` and frame the answers accordingly, if the suer asks for explanation/clarification.
+    Provide the code by analysing and modifying according to the user's request if the user asks for code.
+    Your response SHOULD NOT contain the word `retrieved_data`.
 """
 
 
@@ -63,10 +65,10 @@ def search(query: str, top_k: int = _TOP_K) -> str:
 
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content" :f"""{_SYSTEM_PROMPT} \n\n retrieved_data:\n{context}\n\n"""},
         {
             "role": "user",
-            "content": f"Context:\n{context}\n\nQuestion: {query}",
+            "content": f"user_query: {query}",
         },
     ]
 
