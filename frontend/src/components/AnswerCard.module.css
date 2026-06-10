@@ -1,0 +1,75 @@
+.card {
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 12px;
+  margin-top: 2rem;
+  max-width: 640px;
+  padding: 1.5rem 2rem;
+  width: 100%;
+}
+
+.spinnerWrapper {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+  border: 3px solid #2d3148;
+  border-radius: 50%;
+  border-top-color: #6c8ebf;
+  height: 2rem;
+  width: 2rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  color: #f87171;
+  margin: 0;
+}
+
+.answer {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
+
+.answer :global(p) {
+  margin: 0.75rem 0;
+}
+
+.answer :global(p:first-child) {
+  margin-top: 0;
+}
+
+.answer :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.answer :global(pre) {
+  background: #0f1117;
+  border: 1px solid #2d3148;
+  border-radius: 6px;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.answer :global(code) {
+  font-family: 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.875em;
+}
+
+.answer :global(pre code) {
+  color: #a5b4fc;
+}
+
+.answer :global(:not(pre) > code) {
+  background: #0f1117;
+  border-radius: 4px;
+  color: #a5b4fc;
+  padding: 0.15em 0.35em;
+}
