@@ -179,21 +179,21 @@ _PYCHRONO_PATHS = [
 
 
 def parse_repos(repos_dir: str) -> Generator[Document, None, None]:
-    chrono_dir = os.path.join(repos_dir, "chrono")
-    pychrono_dir = os.path.join(repos_dir, "pychrono-examples")
+    # chrono_dir = os.path.join(repos_dir, "chrono")
+    pychrono_dir = repos_dir
 
-    clone_repo(_CHRONO_URL, chrono_dir)
+    # clone_repo(_CHRONO_URL, chrono_dir)
     clone_repo(_PYCHRONO_URL, pychrono_dir)
 
-    for rel_path, recursive in _CHRONO_PATHS:
-        for abs_path in walk_path(chrono_dir, rel_path, recursive):
-            rel = os.path.relpath(abs_path, chrono_dir)
-            yield from parse_file(abs_path, rel, "chrono")
+    # for rel_path, recursive in _CHRONO_PATHS:
+    #     for abs_path in walk_path(chrono_dir, rel_path, recursive):
+    #         rel = os.path.relpath(abs_path, chrono_dir)
+    #         yield from parse_file(abs_path, rel, "chrono")
 
     for rel_path, recursive in _PYCHRONO_PATHS:
         for abs_path in walk_path(pychrono_dir, rel_path, recursive):
             rel = os.path.relpath(abs_path, pychrono_dir)
-            yield from parse_file(abs_path, rel, "pychrono-examples")
+            yield from parse_file(abs_path, rel, "pychrono-examples-9.0")
 
 
 def parse_example_pair(input_path: str, truth_path: str) -> Document:
