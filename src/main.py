@@ -16,7 +16,7 @@ from inference.vector_search import search
 
 _REPOS_DIR = os.getenv(
     "REPOS_DIR",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../repos"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../pychrono-examples-9.0"),
 )
 
 _MBOX_PATH = os.getenv(
@@ -37,7 +37,7 @@ class IndexResponse(BaseModel):
 def index() -> IndexResponse:
     documents = []
     try:
-        # documents = list(parse_repos(_REPOS_DIR))
+        documents = list(parse_repos(_REPOS_DIR))
         if os.path.exists(_MBOX_PATH):
             documents.extend(parse_mbox(_MBOX_PATH))
         documents = generate_embeddings(documents)
