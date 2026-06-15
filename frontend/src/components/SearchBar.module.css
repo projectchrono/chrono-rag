@@ -1,8 +1,15 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 100%;
+  max-width: 640px;
+}
+
 .wrapper {
   display: flex;
   gap: 0.5rem;
   width: 100%;
-  max-width: 640px;
 }
 
 .input {
@@ -49,4 +56,57 @@
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+/* ---- model selector ---- */
+
+.modelRow {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.modelLabel {
+  color: #475569;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.toggle {
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 6px;
+  display: flex;
+  overflow: hidden;
+}
+
+.toggleOption {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.85rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggleOption:hover:not(:disabled) {
+  background: #252836;
+  color: #e2e8f0;
+}
+
+.toggleOption:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.toggleActive {
+  background: #6c8ebf;
+  color: #fff;
+}
+
+.toggleActive:hover:not(:disabled) {
+  background: #5a7aaa;
+  color: #fff;
 }

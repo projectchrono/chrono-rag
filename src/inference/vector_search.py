@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from pymongo import MongoClient
+
+from inference.llm import LLM
 
 load_dotenv()
 
@@ -25,7 +27,7 @@ def _get_collection():
     return client[_DB_NAME][_COLLECTION_NAME]
 
 
-def search(query: str, top_k: int = _TOP_K) -> str:
+def search(query: str, top_k: int = _TOP_K, model: str = LLM.ANTHROPIC_MODEL) -> str:
     embedder = OpenAIEmbeddings(model="text-embedding-3-small")
     query_vector = embedder.embed_query(query)
 
@@ -64,14 +66,6 @@ def search(query: str, top_k: int = _TOP_K) -> str:
 
     context = "\n\n".join(context_parts)
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    messages = [
-        {"role": "system", "content" :f"""{_SYSTEM_PROMPT} \n\n retrieved_data:\n{context}\n\n"""},
-        {
-            "role": "user",
-            "content": f"user_query: {query}",
-        },
-    ]
-
-    response = llm.invoke(messages)
-    return response.content
+    llm = LLM(model=model)
+    system = f"{_SYSTEM_PROMPT}\n\nretrieved_data:\n{context}"
+    return llm.complete(system=system, user=f"user_query: {query}")

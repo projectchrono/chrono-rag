@@ -12,6 +12,7 @@ load_dotenv()
 from preprocess.dataparser import parse_mbox, parse_repos
 from preprocess.embeddings import generate_embeddings
 from preprocess.vectorstore import create_vector_search_index, upsert_documents
+from inference.llm import LLM
 from inference.vector_search import search
 
 _REPOS_DIR = os.getenv(
@@ -56,6 +57,7 @@ def index() -> IndexResponse:
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
+    model: str = LLM.ANTHROPIC_MODEL  # "claude-opus-4-8" | "gpt-4o-mini"
 
 
 class SearchResponse(BaseModel):
@@ -67,7 +69,7 @@ def vector_search(body: SearchRequest) -> SearchResponse:
     if not body.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
     try:
-        answer = search(body.query, top_k=body.top_k)
+        answer = search(body.query, top_k=body.top_k, model=body.model)
         return SearchResponse(answer=answer)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
