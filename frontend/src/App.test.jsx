@@ -41,7 +41,7 @@ test('calls fetch with correct payload', async () => {
   expect(global.fetch).toHaveBeenCalledWith('/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: 'How do I use PyChrono?', top_k: 5 }),
+    body: JSON.stringify({ query: 'How do I use PyChrono?', top_k: 5, model: 'claude-opus-4-8' }),
   })
 })
 
