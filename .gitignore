@@ -4,3 +4,6 @@ CLAUDE.md
 repos/
 __pycache__/
 docs/superpowers/
+topics.mbox
+.vscode/
+.history/
