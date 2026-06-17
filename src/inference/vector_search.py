@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from pymongo import MongoClient
@@ -13,7 +14,7 @@ _DB_NAME = "chrono_rag"
 _COLLECTION_NAME = "chunks"
 _TOP_K = 5
 
-with open("src/inference/migration_prompt.md", "r") as f:
+with open(os.path.join(os.path.dirname(__file__), "migration_prompt.md"), "r") as f:
     _VERSION_DIFF_PROMPT = f.read()
 
 _SYSTEM_PROMPT = f"""
