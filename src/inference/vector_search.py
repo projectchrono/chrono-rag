@@ -13,7 +13,7 @@ _DB_NAME = "chrono_rag"
 _COLLECTION_NAME = "chunks"
 _TOP_K = 5
 
-with open("migration_prompt.md", "r") as f:
+with open("src/inference/migration_prompt.md", "r") as f:
     _VERSION_DIFF_PROMPT = f.read()
 
 _SYSTEM_PROMPT = f"""
