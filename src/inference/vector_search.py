@@ -13,12 +13,22 @@ _DB_NAME = "chrono_rag"
 _COLLECTION_NAME = "chunks"
 _TOP_K = 5
 
-_SYSTEM_PROMPT = """
+with open("migration_prompt.md", "r") as f:
+    _VERSION_DIFF_PROMPT = f.read()
+
+_SYSTEM_PROMPT = f"""
     You are an expert in Chrono and PyChrono, the physics-based simulation libraries. "
     "Answer the user's question using only the provided `retrieved_data` from the vector store. "
     Explain the user by analysing the `retrieved_data` and the `user_query` and frame the answers accordingly, if the suer asks for explanation/clarification.
     Provide the code by analysing and modifying according to the user's request if the user asks for code.
     Your response SHOULD NOT contain the word `retrieved_data`.
+
+
+    You need to keep these in mind during code generation:
+    1. The retrieved data contains code that are of version 9.0.0 of PyChrono. 
+    You can use the following prompt to analyze the version difference and generate code that is compatible with PyChrono version 10.0.0: 
+
+    {_VERSION_DIFF_PROMPT}
 """
 
 
