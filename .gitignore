@@ -7,3 +7,6 @@ docs/superpowers/
 topics.mbox
 .vscode/
 .history/
+
+# v2 build artifacts (shipped as release assets, not committed)
+index/
