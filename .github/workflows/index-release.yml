@@ -1,0 +1,55 @@
+name: Build & publish index
+
+# Builds the v2 index from a Chrono checkout, gates it on the retrieval eval,
+# and uploads it as an artifact. Run manually (pick the Chrono tag) or on a
+# release. Nightly/main snapshots are opt-in via workflow_dispatch.
+on:
+  workflow_dispatch:
+    inputs:
+      chrono_ref:
+        description: "Chrono git ref/tag to index"
+        default: "10.0.0"
+  release:
+    types: [published]
+
+jobs:
+  build-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Clone Chrono (${{ github.event.inputs.chrono_ref || '10.0.0' }})
+        run: |
+          git clone --depth 1 --branch "${{ github.event.inputs.chrono_ref || '10.0.0' }}" \
+            https://github.com/projectchrono/chrono.git chrono-src
+
+      - name: Build index
+        env:
+          CHRONO_RAG_REPO: chrono-src
+          CHRONO_RAG_INDEX: index
+        run: python src/preprocess/build_index.py
+
+      - name: Retrieval eval gate
+        env:
+          CHRONO_RAG_INDEX: index
+        run: python src/eval/run_eval.py   # non-zero exit fails the build
+
+      - name: Package index
+        run: tar -czf chrono-rag-index.tar.gz -C index .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrono-rag-index
+          path: chrono-rag-index.tar.gz
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: chrono-rag-index.tar.gz
