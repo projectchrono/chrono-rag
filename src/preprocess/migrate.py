@@ -45,6 +45,7 @@ _SUBS: List[Tuple[re.Pattern, str, str]] = [
     (re.compile(r"\bdrawChFunction\b"), "DrawChFunction", "drawChFunction -> DrawChFunction"),
     (re.compile(r"\bdrawProfiler\b"), "DrawProfiler", "drawProfiler -> DrawProfiler"),
     (re.compile(r"\bEmptyAccumulators\b"), "EmptyAccumulator", "EmptyAccumulators -> EmptyAccumulator"),
+    (re.compile(r"\bsens\.PINHOLE\b"), "sens.CameraLensModelType_PINHOLE", "sensor PINHOLE -> CameraLensModelType_PINHOLE"),
     (re.compile(r"\.SetModifiedNewton\(\s*True\s*\)"),
      ".SetJacobianUpdateMethod(chrono.ChTimestepperImplicit.JacobianUpdate_EVERY_STEP)", "SetModifiedNewton(True)"),
     (re.compile(r"\.SetModifiedNewton\(\s*False\s*\)"),
@@ -61,6 +62,8 @@ _FLAGS = [
     (re.compile(r"\bChInteractiveDriver\b"), "ChInteractiveDriver: arg must be the vehicle (e.g. model.GetVehicle()), not the visual system; add vis.AttachDriver(driver)"),
     (re.compile(r"\.SetOutput\("), "SetOutput: a Mode argument was inserted (chrono.ChOutput.Mode_FRAMES)"),
     (re.compile(r"\bChCameraSensor\("), "ChCameraSensor: ctor params changed; pass gamma/use_fog by keyword, new use_denoiser/integrator args"),
+    (re.compile(r"\bChVisualShapeFEA\b"), "ChVisualShapeFEA was removed in 10.0; FEA mesh visualization is now done differently (VisualizationCallback) - needs a manual rewrite"),
+    (re.compile(r"\bChLoaderGravity\b"), "ChLoaderGravity was removed in 10.0; apply gravity via mesh.SetAutomaticGravity()/system gravity - needs a manual rewrite"),
 ]
 
 # Leftover 9.0 symbols that should NOT survive a correct port (the guide's grep).
