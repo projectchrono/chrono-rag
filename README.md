@@ -108,6 +108,49 @@ cd frontend && npm run dev
 
 ---
 
+## Claude Code Skill (`/rag-search`)
+
+The repo ships a [Claude Code](https://claude.ai/code) slash command that lets you query the RAG backend directly from your Claude Code session — no browser needed.
+
+### How it works
+
+Typing `/rag-search <question>` in Claude Code:
+1. Calls `scripts/rag_search.sh`, which hits `POST /index` on the running backend.
+2. Returns the LLM-generated answer.
+3. Extracts any code blocks from the response and writes them to `scripts/rag_output.py`.
+
+### Setup
+
+The skill file is already included at `.claude/commands/rag-search.md`. The only requirement is that **Claude Code** is installed and the **backend is running** when you invoke it.
+
+**Install Claude Code** (if you haven't already):
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+Then open Claude Code inside the repo:
+
+```bash
+claude
+```
+
+### Usage
+
+With the backend running (`http://localhost:8000`), type in the Claude Code prompt:
+
+```
+/rag-search How do I create a rigid body in PyChrono?
+```
+
+Claude will return the answer as prose. If the response includes code, it is automatically saved to `scripts/rag_output.py` so you can run it immediately:
+
+```bash
+python scripts/rag_output.py
+```
+
+---
+
 ## API Reference
 
 ### `POST /index`
