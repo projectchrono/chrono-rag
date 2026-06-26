@@ -38,7 +38,8 @@ def _get_collection():
     return client[_DB_NAME][_COLLECTION_NAME]
 
 
-def search(query: str, top_k: int = _TOP_K, model: str = LLM.ANTHROPIC_MODEL) -> str:
+def retrieve(query: str, top_k: int = _TOP_K) -> str:
+    """Return the raw context string for a query without calling the LLM."""
     embedder = OpenAIEmbeddings(model="text-embedding-3-small")
     query_vector = embedder.embed_query(query)
 
@@ -75,8 +76,11 @@ def search(query: str, top_k: int = _TOP_K, model: str = LLM.ANTHROPIC_MODEL) ->
         part += f"{chunk['content']}"
         context_parts.append(part)
 
-    context = "\n\n".join(context_parts)
+    return "\n\n".join(context_parts)
 
+
+def search(query: str, top_k: int = _TOP_K, model: str = LLM.ANTHROPIC_MODEL) -> str:
+    context = retrieve(query, top_k)
     llm = LLM(model=model)
     system = f"{_SYSTEM_PROMPT}\n\nretrieved_data:\n{context}"
     return llm.complete(system=system, user=f"user_query: {query}")
