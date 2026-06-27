@@ -9,7 +9,6 @@ VERSION_LABEL = "PyChrono 10.0"
 # Tunable retrieval constants. These are PLACEHOLDERS pending calibration by the
 # eval harness (the whole reason the harness is a first-class Phase 1 deliverable).
 DENSE_FLOOR = 0.62          # cosine below which a result is weak (bge-small scale; eval-calibrated)
-MARGIN_FLOOR = 0.03         # top1-top2 dense margin below which the top match is ambiguous
 RRF_K = 60                  # reciprocal-rank-fusion damping constant
 PYCHRONO_BOOST = 0.15       # extra fused weight for Python/PyChrono chunks on Python queries
 

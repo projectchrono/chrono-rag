@@ -63,14 +63,11 @@ def load_store(index_dir: Optional[str] = None) -> VectorStore:
             if line:
                 meta.append(json.loads(line))
 
-    # Prefer manifest.json (v2); fall back to chrono-oracle's config.json.
     manifest: Dict[str, Any] = {}
-    for name in ("manifest.json", "config.json"):
-        p = os.path.join(d, name)
-        if os.path.exists(p):
-            with open(p, encoding="utf-8") as fh:
-                manifest = json.load(fh)
-            break
+    man_path = os.path.join(d, "manifest.json")
+    if os.path.exists(man_path):
+        with open(man_path, encoding="utf-8") as fh:
+            manifest = json.load(fh)
 
     if len(meta) != emb.shape[0]:
         raise ValueError(

@@ -66,15 +66,14 @@ cd frontend && npm install && npm run dev
 
 ```
 Chrono checkout
-  -> structural chunking (AST for Python, tree-sitter for C++) + PyChrono binding map
+  -> structural chunking (AST for Python, tree-sitter for C++)
   -> local ONNX embeddings (fastembed)
   -> index artifact (embeddings.npy + meta.jsonl + manifest.json)
   -> retrieval core: hybrid (dense + BM25 + symbol) + abstention + injection filter
   -> surfaces: MCP / CLI / web
 ```
 
-PyChrono is a SWIG binding over C++, so a Python question is answered by joining the Python
-usage with the mapped C++ documentation. Retrieval is PyChrono-first.
+Retrieval is PyChrono-first: Python/PyChrono chunks are boosted for Python-phrased queries.
 
 ## Configuration (env vars)
 

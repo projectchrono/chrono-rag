@@ -1,9 +1,8 @@
 r"""Build the v2 Chrono RAG index.
 
 Walks a Chrono checkout, chunks it structurally (AST for Python, tree-sitter for
-C++), tags each chunk with PyChrono binding info, embeds with the local ONNX
-embedder, and writes the index artifact (embeddings.npy + meta.jsonl +
-manifest.json).
+C++), embeds with the local ONNX embedder, and writes the index artifact
+(embeddings.npy + meta.jsonl + manifest.json).
 
 Run:
   python src/preprocess/build_index.py
@@ -30,7 +29,6 @@ if _SRC not in sys.path:
 
 from core import config
 from core.embedder import DEFAULT_MODEL, get_embedder
-from preprocess.bindings import build_binding_map
 from preprocess.chunkers import chunk_file
 
 CHUNKER_VERSION = "v2-structural-1"
@@ -107,9 +105,6 @@ def main() -> None:
     print(f"[build] model={model_name}")
     t0 = time.time()
 
-    bindings = build_binding_map(repo)
-    print(f"[build] binding map: {len(bindings.exposed_headers)} exposed C++ headers")
-
     files = list(_iter_files(repo))
     print(f"[build] {len(files)} files to chunk")
 
@@ -121,15 +116,7 @@ def main() -> None:
         except OSError:
             continue
         rel = os.path.relpath(fpath, repo).replace("\\", "/")
-        for ch in chunk_file(content, rel):
-            if ch["language"] in ("cpp", "c"):
-                exposed, module = bindings.lookup(rel)
-                ch["python_exposed"] = exposed
-                ch["pychrono_module"] = module
-            elif ch["language"] == "py":
-                ch["python_exposed"] = True
-                ch["pychrono_module"] = "pychrono"
-            meta.append(ch)
+        meta.extend(chunk_file(content, rel))
 
     print(f"[build] {len(meta)} chunks; embedding with {model_name} ...")
     embedder = get_embedder(model_name)
