@@ -56,9 +56,6 @@ def main() -> None:
         except OSError:
             continue
         for ch in chunk_file(content, "examples/" + rel):
-            ch["python_exposed"] = True
-            ch["pychrono_module"] = "pychrono"
-            ch["chrono_version"] = "10.0"
             ch["source"] = "pychrono-examples-10.0"
             ch["verified"] = True
             new_meta.append(ch)

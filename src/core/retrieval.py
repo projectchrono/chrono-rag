@@ -7,7 +7,6 @@ hard-blocking (it cannot enforce refusal anyway), while the answer surface
 """
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -27,22 +26,13 @@ _INJECTION_PATTERNS = [
     re.compile(r"</?(system|instructions?)>", re.I),
 ]
 
-_EXT_LANG = {
-    ".py": "py", ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".c": "c",
-    ".h": "cpp", ".hpp": "cpp", ".hxx": "cpp", ".cu": "cpp", ".cuh": "cpp",
-    ".cs": "cs", ".md": "md", ".rst": "rst", ".txt": "txt",
-}
-
 
 def looks_like_injection(text: str) -> bool:
     return any(p.search(text) for p in _INJECTION_PATTERNS)
 
 
 def _lang_of(meta: Dict[str, Any]) -> str:
-    lang = meta.get("language")
-    if lang:
-        return lang
-    return _EXT_LANG.get(os.path.splitext(meta.get("path", ""))[1].lower(), "")
+    return meta.get("language", "")
 
 
 def _is_python_chunk(meta: Dict[str, Any]) -> bool:
