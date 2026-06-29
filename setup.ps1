@@ -21,10 +21,17 @@ Write-Host @"
        `$env:CHRONO_RAG_REPO = "C:\path\to\chrono"
        conda run -n $EnvName python src/preprocess/build_index.py
 
-  2. Search from the CLI (no API key needed):
+  2. Search from the CLI (no API key needed for the default fastembed index):
        conda run -n $EnvName python src/surfaces/cli.py search "attach a lidar in pychrono"
 
-  3. Use it in your editor: add src/surfaces/mcp_server.py as an MCP
+  3. (Optional) Use the OpenAI-backed index converted from a MongoDB dump:
+       pip install pymongo
+       python scripts/convert_mongo_index.py --zip chrono_embeddings.zip --out index-mongo
+       `$env:CHRONO_RAG_INDEX = (Resolve-Path "index-mongo").Path
+       `$env:OPENAI_API_KEY = "sk-..."
+       conda run -n $EnvName python src/surfaces/cli.py search "ChBodyEasyBox"
+
+  4. Use it in your editor: add src/surfaces/mcp_server.py as an MCP
      server (see README.md for the config snippet).
 ============================================
 "@

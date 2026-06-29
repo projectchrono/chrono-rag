@@ -4,8 +4,9 @@ A local, code-aware retrieval assistant for [Chrono](https://github.com/projectc
 and **PyChrono 10.0**. Ask how to do something in PyChrono and get the relevant source,
 demos, and API back, inside your AI editor, from a terminal, or a local web page.
 
-No Docker, no database server, no embedding API key. Everything runs locally: a small ONNX
-embedding model plus an in-memory hybrid (dense + BM25 + symbol) index over the Chrono codebase.
+No Docker, no database server. Default mode is fully local: a small ONNX embedding model plus
+an in-memory hybrid (dense + BM25 + symbol) index over the Chrono codebase. An optional
+OpenAI-backed index (converted from a MongoDB dump) can be swapped in with one env var.
 
 > Scope: answers target **PyChrono 10.0**. Older releases are out of scope for now.
 
@@ -34,6 +35,29 @@ conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lid
 # 3b. CLI answer (needs ANTHROPIC_API_KEY or OPENAI_API_KEY)
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 ```
+
+## Using the OpenAI-backed index (optional)
+
+The main branch stored embeddings in MongoDB (OpenAI `text-embedding-3-small`, 1536-dim).
+A one-off conversion script turns that BSON dump into v2's NumPy format so it can be swapped
+in with a single env var — no architectural changes.
+
+```bash
+# 1. Install pymongo (one-time; only needed for the conversion step)
+pip install pymongo
+
+# 2. Convert the BSON dump (accepts a zip or an extracted .bson file)
+python scripts/convert_mongo_index.py --zip chrono_embeddings.zip --out index-mongo/
+
+# 3. Use the OpenAI-backed index (needs OPENAI_API_KEY at query time)
+CHRONO_RAG_INDEX=./index-mongo python src/surfaces/cli.py search "ChBodyEasyBox"
+
+# Default fastembed index — no change, no API key required
+python src/surfaces/cli.py search "ChBodyEasyBox"
+```
+
+The retrieval core detects which embedder to use from `manifest.json` inside the index
+directory; no code change is needed when switching indexes.
 
 ## Use it in your editor (MCP)
 
@@ -83,6 +107,7 @@ Retrieval is PyChrono-first: Python/PyChrono chunks are boosted for Python-phras
 | `CHRONO_RAG_DIGEST` | architecture digest file | `<repo>/docs/chrono-digest.md` |
 | `CHRONO_RAG_REPO` | Chrono checkout (build only) | - |
 | `CHRONO_RAG_EMBED_MODEL` | embedder (build only) | `BAAI/bge-small-en-v1.5` |
+| `OPENAI_API_KEY` | required when using an OpenAI-backed index | - |
 
 ## Development
 
