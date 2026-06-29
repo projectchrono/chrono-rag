@@ -1,49 +1,55 @@
 # chrono-rag
 
-A local, code-aware retrieval assistant for [Chrono](https://github.com/projectchrono/chrono)
-and **PyChrono 10.0**. Ask how to do something in PyChrono and get the relevant source,
-demos, and API back, inside your AI editor, from a terminal, or a local web page.
+A friendly helper for [Project Chrono](https://github.com/projectchrono/chrono) and **PyChrono 10.0**.
+Ask a question in plain English, like *"how do I attach a lidar sensor?"*, and it finds the answer in
+Chrono's own source code, demos, and docs, and points you at the exact files.
 
-No Docker, no database server, no embedding API key. Everything runs locally: a small ONNX
-embedding model plus an in-memory hybrid (dense + BM25 + symbol) index over the Chrono codebase.
+It runs on your own computer. No accounts, no database to install, and no paid key needed to get started.
 
-> Scope: answers target **PyChrono 10.0**. Older releases are out of scope for now.
+> It focuses on **PyChrono 10.0**. Older versions aren't covered yet.
 
-## Surfaces
+## Three ways to use it
 
-1. **MCP server** - point Cursor, Claude Code, Windsurf, or any MCP editor at it; exposes
-   `search_chrono` and `chrono_digest` tools.
-2. **CLI** - `search` (raw chunks, no key) and `ask` (LLM answer, bring your own key).
-3. **Web** - a local FastAPI app + React UI (bring your own key).
+Pick whatever fits how you work:
 
-## Quick start
+1. **In your terminal** - type a question, get an answer.
+2. **In your editor** (Cursor, Claude Code, VS Code, ...) - ask while you code, and it pulls the
+   relevant Chrono code in for you.
+3. **In a local web page** - a simple browser app, if you prefer clicking to typing.
+
+## Get started (terminal)
+
+You'll need [conda](https://conda-forge.org/). Three short steps:
 
 ```bash
-# 1. Environment (conda-forge)
+# 1. Create an environment and install the dependencies
 conda create -n chrono-rag python=3.12 -y
 conda run -n chrono-rag pip install -r requirements.txt
+```
 
-# 2. Get an index. Recommended: download the prebuilt one from the repo's Releases
-#    page and unzip it so there is an `index/` folder at the repo root:
-#      https://github.com/uwsbel/chrono-rag/releases  ->  chrono-rag-index-<commit>.zip
-#    (or point CHRONO_RAG_INDEX at wherever you unzipped it).
-#    Advanced: build your own from a Chrono checkout (set CHRONO_RAG_REPO to your clone):
-conda run -n chrono-rag python src/preprocess/build_index.py
+**2. Get the search index.** This is a prepared snapshot of Chrono's code that makes searching fast.
+Download the ready-made one from the [Releases page](https://github.com/uwsbel/chrono-rag/releases)
+(the `chrono-rag-index-*.zip` file) and unzip it so you have an `index/` folder here. That's the easy
+path; building your own is covered near the bottom.
 
-# 3a. CLI (no API key needed)
+**3. Ask away.**
+
+```bash
+# Find the relevant code (instant, nothing else to set up):
 conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lidar in pychrono"
 
-# 3b. CLI answer, cloud (set ANTHROPIC_API_KEY or OPENAI_API_KEY)
-conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
-
-# 3c. CLI answer, free + local (no key) via an OpenAI-compatible server, e.g. Lemonade
-$env:CHRONO_RAG_LLM_PROVIDER="local"; $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:13305/api/v1"
+# Get a written answer (needs an answer model; see "Free or best answers" below):
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 ```
 
-## Use it in your editor (MCP)
+`search` lists the matching code with file names and line numbers. `ask` reads that code and writes you
+an answer, along with the files it used.
 
-Add this to your editor's MCP config (`.cursor/mcp.json`, or Claude Code's `mcpServers`):
+## Use it in your editor
+
+If your editor supports MCP (Cursor, Claude Code, Windsurf, ...), you can ask Chrono questions right
+where you code. Add this to your editor's MCP settings (for example `.cursor/mcp.json`, or Claude Code's
+config):
 
 ```json
 {
@@ -51,79 +57,86 @@ Add this to your editor's MCP config (`.cursor/mcp.json`, or Claude Code's `mcpS
     "chrono-rag": {
       "command": "<path-to>/.conda/envs/chrono-rag/python.exe",
       "args": ["<repo>/src/surfaces/mcp_server.py"],
-      "env": {
-        "CHRONO_RAG_INDEX": "<path-to-index-dir>"
-      }
+      "env": { "CHRONO_RAG_INDEX": "<path-to-your-index-folder>" }
     }
   }
 }
 ```
 
-On first run chrono-rag downloads the small ONNX embedding model (`bge-small`, tens of MB), so the
-first query needs network. `CHRONO_RAG_DIGEST` is optional (it enables the `chrono_digest` tool); add
-`"HF_HUB_OFFLINE": "1"` to the env only after the embedder is cached, to force fully-offline runs.
+The very first question downloads a small search model (a one-time download), so it needs internet once.
 
-## Web app
+## Free or best answers
+
+Searching for code is always free and works offline. Writing an answer needs a language model, and you
+choose which one. Set the options below as environment variables
+(PowerShell: `$env:NAME="value"`; macOS/Linux: `export NAME=value`).
+
+**Free, on your machine.** Run a model locally with [AMD Lemonade](https://lemonade-server.ai/) (or any
+compatible local server) and point chrono-rag at it. No key, no cost, works offline. Local models are
+good, just not as sharp as the big cloud ones.
+
+```
+CHRONO_RAG_LLM_PROVIDER = local
+CHRONO_RAG_LLM_BASE_URL = http://localhost:13305/api/v1      # your local server's address
+CHRONO_RAG_LLM_MODEL    = Qwen2.5-Coder-32B-Instruct-GGUF
+```
+
+**Best quality (paid).** Use a top cloud model by providing your own API key, then add `--provider`:
+
+```
+ANTHROPIC_API_KEY = sk-ant-...        # your key; roughly a few cents per question
+# then: ... cli.py ask "..." --provider anthropic     (or --provider openai with OPENAI_API_KEY)
+```
+
+Either way, the part that searches Chrono always runs locally; only the model that writes the answer
+changes.
+
+## Web app (optional)
+
+Prefer a browser? Run the local web app:
 
 ```bash
 conda run -n chrono-rag python -m uvicorn main:app --app-dir src --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-## How it works
+---
 
-```
-Chrono checkout
-  -> structural chunking (AST for Python, tree-sitter for C++)
-  -> local ONNX embeddings (fastembed)
-  -> index artifact (embeddings.npy + meta.jsonl + manifest.json)
-  -> retrieval core: hybrid (dense + BM25 + symbol) + abstention + injection filter
-  -> surfaces: MCP / CLI / web
-```
+## Under the hood (for the curious)
 
-Retrieval is PyChrono-first: Python/PyChrono chunks are boosted for Python-phrased queries.
+You don't need any of this to use it.
 
-## Configuration (env vars)
+chrono-rag reads a copy of the Chrono code, splits it into meaningful pieces (functions, classes, doc
+sections), and turns each piece into a numeric "fingerprint" using a small model that runs locally. Your
+question is matched against those fingerprints, combined with a plain keyword search and an exact
+name match, to surface the most relevant pieces. If nothing relevant comes up, it says so instead of
+guessing. Python/PyChrono code is favored for Python questions. The result is a small `index/` folder
+that stays entirely on your machine.
 
-| Var | Meaning | Default |
-|-----|---------|---------|
-| `CHRONO_RAG_INDEX` | index directory | `<repo>/index` |
-| `CHRONO_RAG_DIGEST` | architecture digest file | `<repo>/docs/chrono-digest.md` |
-| `CHRONO_RAG_REPO` | Chrono checkout (build only) | - |
-| `CHRONO_RAG_EMBED_MODEL` | embedder (build only) | `BAAI/bge-small-en-v1.5` |
-| `CHRONO_RAG_LLM_PROVIDER` | answer backend: `anthropic` / `openai` / `local` | auto |
-| `CHRONO_RAG_LLM_BASE_URL` | OpenAI-compatible URL for `local` | - |
-| `CHRONO_RAG_LLM_MODEL` | model id | provider default |
-| `CHRONO_RAG_LLM_API_KEY` | key (dummy ok for `local`) | provider env key |
+### Build your own index
 
-## Answer backend (cloud or local)
-
-The `ask` / web answer path is backend-agnostic (the `anthropic` / `openai` SDKs ship in
-`requirements.txt`). Retrieval and embeddings are always local; only the final answer's LLM is your
-choice. With nothing configured the provider auto-resolves from your environment.
-
-- **Cloud (recommended for quality):** set `ANTHROPIC_API_KEY` (default `claude-opus-4-8`) or
-  `OPENAI_API_KEY` (`--model gpt-4o-mini`), then run `ask --provider anthropic`. Runs the full
-  pipeline (retrieval + grounding + refuse + deterministic citations) on a frontier model. The key is
-  separate from any Claude Code subscription; personal-use cost is a few cents per query.
-- **Local, free, no key (AMD Lemonade or any OpenAI-compatible server):** install Lemonade (see its
-  docs), pull a coding model (`Qwen2.5-Coder-32B-Instruct-GGUF` on the GPU; a `-Hybrid` model runs on
-  a Ryzen AI NPU), then point chrono-rag at it. The C++ installer serves at
-  `http://localhost:13305/api/v1`; the pip `lemonade-sdk` dev server at `http://localhost:8000/api/v1`.
-
-  ```bash
-  $env:CHRONO_RAG_LLM_PROVIDER="local"
-  $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:13305/api/v1"
-  $env:CHRONO_RAG_LLM_MODEL="Qwen2.5-Coder-32B-Instruct-GGUF"
-  conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
-  ```
-
-  Local models are weaker at PyChrono code than the cloud models; the trade is
-  free, offline, and private.
-
-## Development
+Instead of downloading the prepared one, build it from a Chrono checkout:
 
 ```bash
-conda run -n chrono-rag python src/eval/run_eval.py    # retrieval eval + abstention calibration
+# set CHRONO_RAG_REPO to your Chrono clone, then:
+conda run -n chrono-rag python src/preprocess/build_index.py
+```
+
+### Settings (environment variables)
+
+| Variable | What it does | Default |
+|---|---|---|
+| `CHRONO_RAG_INDEX` | where the index folder lives | `<repo>/index` |
+| `CHRONO_RAG_LLM_PROVIDER` | who writes answers: `anthropic` / `openai` / `local` | auto |
+| `CHRONO_RAG_LLM_BASE_URL` | address of a local / compatible server | - |
+| `CHRONO_RAG_LLM_MODEL` | which model to use | provider default |
+| `CHRONO_RAG_LLM_API_KEY` | API key (a dummy is fine for `local`) | from your environment |
+| `CHRONO_RAG_REPO` | your Chrono clone (only when building an index) | - |
+| `CHRONO_RAG_DIGEST` | optional architecture-overview file | `docs/chrono-digest.md` |
+
+### Developing
+
+```bash
+conda run -n chrono-rag python src/eval/run_eval.py    # retrieval quality check
 conda run -n chrono-rag pytest                          # unit tests
 ```
