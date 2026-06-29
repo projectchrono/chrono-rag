@@ -3,11 +3,13 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), os.pardir, "src"))
 
 from core.retrieval import RetrievalCore
 from core.store import VectorStore
+from inference.llm import LLM
 from preprocess.chunkers import chunk_cpp, chunk_python
 
 
@@ -66,3 +68,47 @@ def test_pychrono_boost_and_injection_bury():
 def test_abstention_on_offtopic():
     r = _toy_core().search("xyzzy quux", k=3)
     assert r.insufficient_evidence
+
+
+# --- LLM backend resolution (no network, no SDK required: imports are lazy) ---
+
+_LLM_ENV = (
+    "CHRONO_RAG_LLM_PROVIDER", "CHRONO_RAG_LLM_BASE_URL", "CHRONO_RAG_LLM_MODEL",
+    "CHRONO_RAG_LLM_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+)
+
+
+@pytest.fixture
+def clean_llm_env(monkeypatch):
+    for v in _LLM_ENV:
+        monkeypatch.delenv(v, raising=False)
+    return monkeypatch
+
+
+def test_llm_explicit_args_win(clean_llm_env):
+    llm = LLM(provider="local", model="my-model", base_url="http://localhost:13305/v1")
+    assert (llm.provider, llm.model, llm.base_url) == (
+        "local", "my-model", "http://localhost:13305/v1")
+
+
+def test_llm_local_requires_base_url(clean_llm_env):
+    with pytest.raises(ValueError):
+        LLM(provider="local")
+
+
+def test_llm_infers_provider_from_model(clean_llm_env):
+    assert LLM(model="gpt-4o-mini").provider == "openai"
+    assert LLM(model="claude-opus-4-8").provider == "anthropic"
+
+
+def test_llm_base_url_implies_local_with_default_model(clean_llm_env):
+    clean_llm_env.setenv("CHRONO_RAG_LLM_BASE_URL", "http://localhost:13305/v1")
+    llm = LLM()
+    assert llm.provider == "local"
+    assert llm.model == LLM.LOCAL_MODEL
+
+
+def test_llm_env_provider_and_default_model(clean_llm_env):
+    clean_llm_env.setenv("CHRONO_RAG_LLM_PROVIDER", "openai")
+    assert LLM().provider == "openai"
+    assert LLM().model == LLM.OPENAI_MODEL
