@@ -6,6 +6,7 @@ chosen model name is recorded in the index manifest and must match at query time
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import List
 
@@ -58,8 +59,48 @@ class Embedder:
         return _l2_normalize(np.asarray(vec, dtype=np.float32))
 
 
+_OPENAI_MODELS = frozenset({
+    "text-embedding-3-small",
+    "text-embedding-3-large",
+    "text-embedding-ada-002",
+})
+
+
+class OpenAIEmbedder:
+    """Query embedder backed by the OpenAI Embeddings API.
+
+    Used automatically when the index manifest names an OpenAI model.
+    Requires OPENAI_API_KEY in the environment.
+    """
+
+    def __init__(self, model_name: str) -> None:
+        try:
+            import openai as _openai
+        except ImportError as exc:
+            raise ImportError(
+                "openai is required for OpenAI-backed indexes. "
+                "Install it with `pip install openai`."
+            ) from exc
+        self.model_name = model_name
+        self._client = _openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    @property
+    def dim(self) -> int:
+        # fixed per model; avoids an API round-trip at init time
+        return {"text-embedding-3-small": 1536, "text-embedding-3-large": 3072}.get(
+            self.model_name, 1536
+        )
+
+    def embed_query(self, text: str) -> np.ndarray:
+        resp = self._client.embeddings.create(model=self.model_name, input=text)
+        vec = np.asarray(resp.data[0].embedding, dtype=np.float32)
+        return _l2_normalize(vec)
+
+
 @lru_cache(maxsize=4)
-def get_embedder(model_name: str = DEFAULT_MODEL) -> Embedder:
-    """Return a cached, warm embedder singleton so only the first call pays the
-    model load (cold start)."""
+def get_embedder(model_name: str = DEFAULT_MODEL) -> "Embedder | OpenAIEmbedder":
+    """Return a cached embedder. Dispatches to OpenAIEmbedder for OpenAI model names,
+    otherwise uses the local fastembed Embedder."""
+    if model_name in _OPENAI_MODELS:
+        return OpenAIEmbedder(model_name)
     return Embedder(model_name)
