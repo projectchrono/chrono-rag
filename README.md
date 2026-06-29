@@ -23,10 +23,12 @@ embedding model plus an in-memory hybrid (dense + BM25 + symbol) index over the 
 conda create -n chrono-rag python=3.12 -y
 conda run -n chrono-rag pip install -r requirements.txt
 
-# 2. Get an index. Either point at an existing one:
-#    set CHRONO_RAG_INDEX=...   (Windows: $env:CHRONO_RAG_INDEX="...")
-#    or build one from a Chrono checkout:
-conda run -n chrono-rag python src/preprocess/build_index.py   # set CHRONO_RAG_REPO to your clone
+# 2. Get an index. Recommended: download the prebuilt one from the repo's Releases
+#    page and unzip it so there is an `index/` folder at the repo root:
+#      https://github.com/uwsbel/chrono-rag/releases  ->  chrono-rag-index-<commit>.zip
+#    (or point CHRONO_RAG_INDEX at wherever you unzipped it).
+#    Advanced: build your own from a Chrono checkout (set CHRONO_RAG_REPO to your clone):
+conda run -n chrono-rag python src/preprocess/build_index.py
 
 # 3a. CLI (no API key needed)
 conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lidar in pychrono"
@@ -35,7 +37,7 @@ conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lid
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 
 # 3c. CLI answer, free + local (no key) via an OpenAI-compatible server, e.g. Lemonade
-$env:CHRONO_RAG_LLM_PROVIDER="local"; $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:8000/api/v1"
+$env:CHRONO_RAG_LLM_PROVIDER="local"; $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:13305/api/v1"
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 ```
 
@@ -50,14 +52,16 @@ Add this to your editor's MCP config (`.cursor/mcp.json`, or Claude Code's `mcpS
       "command": "<path-to>/.conda/envs/chrono-rag/python.exe",
       "args": ["<repo>/src/surfaces/mcp_server.py"],
       "env": {
-        "CHRONO_RAG_INDEX": "<path-to-index-dir>",
-        "CHRONO_RAG_DIGEST": "<path-to-digest.md>",
-        "HF_HUB_OFFLINE": "1"
+        "CHRONO_RAG_INDEX": "<path-to-index-dir>"
       }
     }
   }
 }
 ```
+
+On first run chrono-rag downloads the small ONNX embedding model (`bge-small`, tens of MB), so the
+first query needs network. `CHRONO_RAG_DIGEST` is optional (it enables the `chrono_digest` tool); add
+`"HF_HUB_OFFLINE": "1"` to the env only after the embedder is cached, to force fully-offline runs.
 
 ## Web app
 
@@ -94,22 +98,22 @@ Retrieval is PyChrono-first: Python/PyChrono chunks are boosted for Python-phras
 
 ## Answer backend (cloud or local)
 
-The `ask` / web answer path is backend-agnostic. With nothing configured it
-auto-resolves (a key in the env picks that cloud provider). Install the SDK with
-conda, not pip: `conda install -n chrono-rag -c conda-forge openai anthropic`
-(a local-only setup needs just `openai`).
+The `ask` / web answer path is backend-agnostic (the `anthropic` / `openai` SDKs ship in
+`requirements.txt`). Retrieval and embeddings are always local; only the final answer's LLM is your
+choice. With nothing configured the provider auto-resolves from your environment.
 
-- **Cloud:** set `ANTHROPIC_API_KEY` (default `claude-opus-4-8`) or `OPENAI_API_KEY`
-  (`--model gpt-4o-mini`).
-- **Local, free, no key (AMD Lemonade or any OpenAI-compatible server):** start the
-  server and pull a code model (e.g. `Qwen2.5-Coder-32B-Instruct-GGUF`), then point
-  chrono-rag at it. The pip `lemonade-sdk` dev server serves at
-  `http://localhost:8000/api/v1`; the standalone C++ installer serves at
-  `http://localhost:13305/api/v1`.
+- **Cloud (recommended for quality):** set `ANTHROPIC_API_KEY` (default `claude-opus-4-8`) or
+  `OPENAI_API_KEY` (`--model gpt-4o-mini`), then run `ask --provider anthropic`. Runs the full
+  pipeline (retrieval + grounding + refuse + deterministic citations) on a frontier model. The key is
+  separate from any Claude Code subscription; personal-use cost is a few cents per query.
+- **Local, free, no key (AMD Lemonade or any OpenAI-compatible server):** install Lemonade (see its
+  docs), pull a coding model (`Qwen2.5-Coder-32B-Instruct-GGUF` on the GPU; a `-Hybrid` model runs on
+  a Ryzen AI NPU), then point chrono-rag at it. The C++ installer serves at
+  `http://localhost:13305/api/v1`; the pip `lemonade-sdk` dev server at `http://localhost:8000/api/v1`.
 
   ```bash
   $env:CHRONO_RAG_LLM_PROVIDER="local"
-  $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:8000/api/v1"
+  $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:13305/api/v1"
   $env:CHRONO_RAG_LLM_MODEL="Qwen2.5-Coder-32B-Instruct-GGUF"
   conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
   ```
