@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from typing import Optional
 
 # Surfaced to users as the honest scope boundary (Phase 1 is single-version, 10.0 only).
 VERSION_LABEL = "PyChrono 10.0"
@@ -40,3 +41,37 @@ def digest_path() -> str:
     if env:
         return os.path.abspath(env)
     return os.path.join(_repo_root(), "docs", "chrono-digest.md")
+
+
+# --- LLM backend (BYOK answer path) -----------------------------------------
+# The `ask` / web answer path is backend-agnostic: cloud (Anthropic, OpenAI) or
+# any OpenAI-compatible local server, e.g. AMD Lemonade at
+# http://localhost:13305/v1. These read the CHRONO_RAG_LLM_* env vars; the LLM
+# wrapper layers explicit args and per-provider defaults on top.
+
+def llm_provider() -> Optional[str]:
+    """Explicit provider from CHRONO_RAG_LLM_PROVIDER, or None to auto-resolve.
+
+    One of `anthropic`, `openai`, `local`. When unset the LLM wrapper infers a
+    provider (base URL -> local, model name -> cloud, key present -> anthropic).
+    """
+    v = os.getenv("CHRONO_RAG_LLM_PROVIDER")
+    return v.strip().lower() if v else None
+
+
+def llm_base_url() -> Optional[str]:
+    """OpenAI-compatible base URL for a local server (CHRONO_RAG_LLM_BASE_URL)."""
+    v = os.getenv("CHRONO_RAG_LLM_BASE_URL")
+    return v.strip() if v else None
+
+
+def llm_model() -> Optional[str]:
+    """Model id from CHRONO_RAG_LLM_MODEL, or None to use the provider default."""
+    v = os.getenv("CHRONO_RAG_LLM_MODEL")
+    return v.strip() if v else None
+
+
+def llm_api_key() -> Optional[str]:
+    """Explicit key from CHRONO_RAG_LLM_API_KEY (a dummy is fine for local)."""
+    v = os.getenv("CHRONO_RAG_LLM_API_KEY")
+    return v.strip() if v else None

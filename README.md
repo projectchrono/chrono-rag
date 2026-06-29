@@ -31,7 +31,11 @@ conda run -n chrono-rag python src/preprocess/build_index.py   # set CHRONO_RAG_
 # 3a. CLI (no API key needed)
 conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lidar in pychrono"
 
-# 3b. CLI answer (needs ANTHROPIC_API_KEY or OPENAI_API_KEY)
+# 3b. CLI answer, cloud (set ANTHROPIC_API_KEY or OPENAI_API_KEY)
+conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
+
+# 3c. CLI answer, free + local (no key) via an OpenAI-compatible server, e.g. Lemonade
+$env:CHRONO_RAG_LLM_PROVIDER="local"; $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:8000/api/v1"
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 ```
 
@@ -83,6 +87,35 @@ Retrieval is PyChrono-first: Python/PyChrono chunks are boosted for Python-phras
 | `CHRONO_RAG_DIGEST` | architecture digest file | `<repo>/docs/chrono-digest.md` |
 | `CHRONO_RAG_REPO` | Chrono checkout (build only) | - |
 | `CHRONO_RAG_EMBED_MODEL` | embedder (build only) | `BAAI/bge-small-en-v1.5` |
+| `CHRONO_RAG_LLM_PROVIDER` | answer backend: `anthropic` / `openai` / `local` | auto |
+| `CHRONO_RAG_LLM_BASE_URL` | OpenAI-compatible URL for `local` | - |
+| `CHRONO_RAG_LLM_MODEL` | model id | provider default |
+| `CHRONO_RAG_LLM_API_KEY` | key (dummy ok for `local`) | provider env key |
+
+## Answer backend (cloud or local)
+
+The `ask` / web answer path is backend-agnostic. With nothing configured it
+auto-resolves (a key in the env picks that cloud provider). Install the SDK with
+conda, not pip: `conda install -n chrono-rag -c conda-forge openai anthropic`
+(a local-only setup needs just `openai`).
+
+- **Cloud:** set `ANTHROPIC_API_KEY` (default `claude-opus-4-8`) or `OPENAI_API_KEY`
+  (`--model gpt-4o-mini`).
+- **Local, free, no key (AMD Lemonade or any OpenAI-compatible server):** start the
+  server and pull a code model (e.g. `Qwen2.5-Coder-32B-Instruct-GGUF`), then point
+  chrono-rag at it. The pip `lemonade-sdk` dev server serves at
+  `http://localhost:8000/api/v1`; the standalone C++ installer serves at
+  `http://localhost:13305/api/v1`.
+
+  ```bash
+  $env:CHRONO_RAG_LLM_PROVIDER="local"
+  $env:CHRONO_RAG_LLM_BASE_URL="http://localhost:8000/api/v1"
+  $env:CHRONO_RAG_LLM_MODEL="Qwen2.5-Coder-32B-Instruct-GGUF"
+  conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
+  ```
+
+  Local models are weaker at PyChrono code than the cloud models; the trade is
+  free, offline, and private.
 
 ## Development
 

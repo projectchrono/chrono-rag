@@ -20,8 +20,14 @@ ANSWER_SYSTEM = (
 )
 
 
-def answer(query: str, k: int = 8, model: Optional[str] = None) -> Dict:
-    """Return {answer, sources, insufficient}. Raises only on LLM/transport errors."""
+def answer(
+    query: str, k: int = 8, model: Optional[str] = None, provider: Optional[str] = None
+) -> Dict:
+    """Return {answer, sources, insufficient}. Raises only on LLM/transport errors.
+
+    `provider` / `model` are passed through to the LLM wrapper (cloud or local);
+    when both are None the backend is resolved from the CHRONO_RAG_LLM_* env vars.
+    """
     core = get_core()
     r = core.search(query, k=k)
 
@@ -41,7 +47,7 @@ def answer(query: str, k: int = 8, model: Optional[str] = None) -> Dict:
     )
     from inference.llm import LLM  # lazy: only needed for the BYOK answer path
 
-    llm = LLM(model=model) if model else LLM()
+    llm = LLM(model=model, provider=provider)
     text = llm.complete(system=f"{ANSWER_SYSTEM}\n\ncontext:\n{context}", user=f"Question: {query}")
     sources: List[str] = [f"{res.path}:{res.line}" for res in r.results]
     return {"answer": text, "sources": sources, "insufficient": False}

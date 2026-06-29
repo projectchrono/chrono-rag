@@ -27,17 +27,22 @@ def _cmd_search(query: str, k: int, full: bool) -> int:
     return 0
 
 
-def _cmd_ask(query: str, k: int, model: str | None) -> int:
+def _cmd_ask(query: str, k: int, model: str | None, provider: str | None) -> int:
     try:
         from surfaces.answer import answer as run_answer
-        res = run_answer(query, k=k, model=model)
+        res = run_answer(query, k=k, model=model, provider=provider)
     except ImportError:
         print(
-            "The 'ask' command needs an LLM SDK (anthropic and/or openai) and an "
-            "API key. Install one (`pip install anthropic`) and set ANTHROPIC_API_KEY "
-            "or OPENAI_API_KEY. Meanwhile, `search` works with no key.",
+            "The 'ask' command needs an LLM SDK. For a cloud provider install "
+            "`anthropic` or `openai` (conda-forge) and set ANTHROPIC_API_KEY / "
+            "OPENAI_API_KEY. For a free local model install `openai` and point it "
+            "at a server: --provider local with CHRONO_RAG_LLM_BASE_URL "
+            "(e.g. Lemonade at http://localhost:13305/v1). `search` needs no key.",
             file=sys.stderr,
         )
+        return 1
+    except ValueError as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
         return 1
 
     print(res["answer"])
@@ -58,17 +63,23 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("-k", type=int, default=8, help="number of results (default 8)")
     ps.add_argument("--full", action="store_true", help="print full chunks, not snippets")
 
-    pa = sub.add_parser("ask", help="retrieve + LLM answer (bring your own key)")
+    pa = sub.add_parser("ask", help="retrieve + LLM answer (cloud key or local server)")
     pa.add_argument("query", nargs="+", help="natural-language question")
     pa.add_argument("-k", type=int, default=8, help="chunks of context (default 8)")
     pa.add_argument("--model", default=None, help="LLM model id (default: provider default)")
+    pa.add_argument(
+        "--provider",
+        choices=["anthropic", "openai", "local"],
+        default=None,
+        help="LLM backend (default: from CHRONO_RAG_LLM_* env, else auto)",
+    )
 
     args = p.parse_args(argv)
     query = " ".join(args.query)
     if args.cmd == "search":
         return _cmd_search(query, args.k, args.full)
     if args.cmd == "ask":
-        return _cmd_ask(query, args.k, args.model)
+        return _cmd_ask(query, args.k, args.model, args.provider)
     return 2
 
 
