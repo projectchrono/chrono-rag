@@ -1,0 +1,11 @@
+{
+  "model": "BAAI/bge-small-en-v1.5",
+  "dim": 384,
+  "n_chunks": 10049,
+  "examples_files": 95,
+  "examples_chunks": 411,
+  "index_format": 2,
+  "built_by": "chrono-rag build_forum_index",
+  "forum_chunks": 9638,
+  "forum_threads": 1908
+}
