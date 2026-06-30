@@ -107,9 +107,10 @@ class LLM:
         client = anthropic.Anthropic(api_key=key)
         response = client.messages.create(
             model=self.model,
-            max_tokens=8192,
+            max_tokens=16000,
+            thinking={"type": "adaptive"},
             system=system,
-            messages=messages,
+            messages=[{"role": "user", "content": user}],
         )
         return next(block.text for block in response.content if block.type == "text")
 
@@ -122,16 +123,10 @@ class LLM:
         client = OpenAI(api_key=key, base_url=self.base_url or None)
         response = client.chat.completions.create(
             model=self.model,
-            temperature=0.1,
-            top_p=0.95,
-            max_completion_tokens=16384,
-            messages=[{"role": "system", "content": system}] + messages,
+            temperature=0,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
         )
         return response.choices[0].message.content
-
-    # kept for backwards compatibility
-    def _complete_anthropic(self, system: str, user: str) -> str:
-        return self._complete_anthropic_multiturn(system, [{"role": "user", "content": user}])
-
-    def _complete_openai(self, system: str, user: str) -> str:
-        return self._complete_openai_multiturn(system, [{"role": "user", "content": user}])
