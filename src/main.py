@@ -1,78 +1,76 @@
+"""Chrono RAG v2 - FastAPI web surface.
+
+Local, bring-your-own-key answer service over the retrieval core. No MongoDB, no
+indexing endpoint (the index is built offline by preprocess/build_index.py). The
+React frontend posts to /search; /retrieve returns raw chunks for tooling.
+
+Run:
+  conda run -n chrono-rag python -m uvicorn main:app --app-dir src --port 8000
+"""
 from __future__ import annotations
 
 import os
+import sys
+
+# Bootstrap so `from core ...` works whether launched via --app-dir src or directly.
+_SRC = os.path.dirname(os.path.abspath(__file__))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import uvicorn
 
 load_dotenv()
 
-from preprocess.dataparser import parse_mbox, parse_repos
-from preprocess.embeddings import generate_embeddings
-from preprocess.vectorstore import create_vector_search_index, upsert_documents
-from inference.llm import LLM
-from inference.vector_search import search
+from surfaces.answer import answer as run_answer
+from surfaces.format import get_core
 
-_REPOS_DIR = os.getenv(
-    "REPOS_DIR",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../pychrono-examples-9.0"),
-)
+app = FastAPI(title="Chrono RAG v2")
 
-_MBOX_PATH = os.getenv(
-    "MBOX_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../topics.mbox"),
-)
-
-app = FastAPI(title="Chrono RAG API")
-
-
-# ---------- /index ----------
-
-class IndexResponse(BaseModel):
-    chunks_indexed: int
-
-
-@app.post("/index", response_model=IndexResponse, summary="Parse repos, embed, and upsert into MongoDB")
-def index() -> IndexResponse:
-    documents = []
-    try:
-        documents = list(parse_repos(_REPOS_DIR))
-        if os.path.exists(_MBOX_PATH):
-            documents.extend(parse_mbox(_MBOX_PATH))
-        documents = generate_embeddings(documents)
-        upsert_documents(documents)
-        try:
-            create_vector_search_index()
-        except Exception:
-            pass  # index already exists
-        return IndexResponse(chunks_indexed=len(documents))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
-# ---------- /search ----------
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: int = 5
-    model: str = LLM.ANTHROPIC_MODEL  # "claude-opus-4-8" | "gpt-4o-mini"
+    top_k: int = 8
+    model: str | None = None
 
 
 class SearchResponse(BaseModel):
     answer: str
+    sources: list[str] = []
+    insufficient: bool = False
 
 
-@app.post("/search", response_model=SearchResponse, summary="Vector search + LLM answer")
-def vector_search(body: SearchRequest) -> SearchResponse:
+@app.post("/search", response_model=SearchResponse, summary="Retrieve + BYOK LLM answer")
+def search(body: SearchRequest) -> SearchResponse:
     if not body.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
     try:
-        answer = search(body.query, top_k=body.top_k, model=body.model)
-        return SearchResponse(answer=answer)
+        res = run_answer(body.query, k=body.top_k, model=body.model)
+        return SearchResponse(answer=res["answer"], sources=res["sources"], insufficient=res["insufficient"])
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+class RetrieveRequest(BaseModel):
+    query: str
+    top_k: int = 8
+
+
+@app.post("/retrieve", summary="Retrieve raw chunks (no LLM, no key)")
+def retrieve(body: RetrieveRequest):
+    if not body.query.strip():
+        raise HTTPException(status_code=400, detail="query must not be empty")
+    r = get_core().search(body.query, k=body.top_k)
+    return {
+        "version": r.version_label,
+        "insufficient_evidence": r.insufficient_evidence,
+        "confidence": r.confidence,
+        "results": [vars(res) for res in r.results],
+    }
+
+
+@app.get("/health", summary="Liveness + index info")
+def health():
+    core = get_core()
+    return {"status": "ok", "chunks": len(core.store), "manifest": core.store.manifest}

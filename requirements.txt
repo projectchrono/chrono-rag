@@ -1,9 +1,23 @@
+# --- Retrieval core (fully local; no API key required) ---
+numpy>=1.26
+fastembed>=0.4            # ONNX text embeddings (no torch)
+rank-bm25>=0.2.2          # in-process lexical search
+tree-sitter>=0.23         # structural C++ chunking
+tree-sitter-cpp>=0.23     # prebuilt grammar (no compiler needed)
+tree-sitter-python>=0.23
+
+# --- MCP server surface ---
+mcp>=1.2
+
+# --- Web surface ---
 fastapi>=0.111.0
 uvicorn>=0.29.0
 pydantic>=2.0.0
-langchain-openai>=0.1.0
+python-dotenv>=1.0.0
+
+# --- BYOK answer path (CLI `ask` / web /search); only needed to generate answers ---
 anthropic>=0.40.0
 openai>=1.0.0
-pymongo>=4.6.0
-python-dotenv>=1.0.0
+
+# --- Tests ---
 pytest>=8.0.0

@@ -7,3 +7,11 @@ docs/superpowers/
 topics.mbox
 .vscode/
 .history/
+
+# v2 build artifacts (shipped as release assets, not committed)
+index/
+
+# Stray simulation-output dirs from running PyChrono demos during local verification
+ROBOSIMIAN_RIGID/
+DEMO_OUTPUT/
+*_OUTPUT/
