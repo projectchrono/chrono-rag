@@ -1,14 +1,15 @@
-Run a RAG vector search against the chrono-rag backend for this query: $ARGUMENTS
+Run a local Chrono/PyChrono retrieval search for: $ARGUMENTS
 
-Run the following command and capture the full result:
+Run this from the repository root (uses the local index; no API key needed):
 
 ```bash
-bash "$(git rev-parse --show-toplevel)/scripts/rag_search.sh" "$ARGUMENTS"
+conda run -n chrono-rag python src/surfaces/cli.py search "$ARGUMENTS"
 ```
 
-Once you have the result:
-1. Extract any ```python ... ``` code blocks from the response and write them to a single file: `scripts/rag_output.py` inside the repo root (use `git rev-parse --show-toplevel` to locate it).
-   - If there are multiple code blocks, concatenate them in order, separated by a blank line.
-   - If there is no code, do not create the file.
-2. Report only the non-code explanation text to the user (strip out the code blocks).
-   - At the end, if a file was written, tell the user: "Code written to scripts/rag_output.py"
+Then report the returned chunks (file paths, line numbers, and snippets) to the user.
+Results target **PyChrono 10.0**. If the search reports low confidence / insufficient
+evidence, tell the user to include a class or function name (e.g. `ChBodyEasyBox`) or the
+exact error message.
+
+For an LLM-written answer instead of raw chunks, use the `ask` subcommand instead of
+`search` (that path needs an `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).

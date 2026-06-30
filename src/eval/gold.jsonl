@@ -1,0 +1,18 @@
+{"query": "how do I attach a lidar sensor to a vehicle in pychrono", "kind": "pychrono", "relevant": ["demo_sen_lidar", "lidar"]}
+{"query": "create a rigid body box in pychrono", "kind": "pychrono", "relevant": ["chbodyeasy", "demo_mbs"]}
+{"query": "set up an HMMWV wheeled vehicle in pychrono", "kind": "pychrono", "relevant": ["demo_veh_hmmwv", "hmmwv"]}
+{"query": "deformable SCM terrain in pychrono", "kind": "pychrono", "relevant": ["scmterrain", "deformablesoil", "demo_veh_deformable"]}
+{"query": "FEA beam simulation in python", "kind": "pychrono", "relevant": ["demo_fea_beam"]}
+{"query": "rotational motor link in pychrono", "kind": "pychrono", "relevant": ["chlinkmotor", "demo_mbs_motors", "motor"]}
+{"query": "simulate the viper rover robot in pychrono", "kind": "pychrono", "relevant": ["viper", "demo_robot_viper"]}
+{"query": "irrlicht real-time visualization in pychrono", "kind": "pychrono", "relevant": ["irrlicht", "demo_irr"]}
+{"query": "load a URDF robot model in pychrono", "kind": "pychrono", "relevant": ["urdf", "demo_parser_urdf"]}
+{"query": "export to povray for rendering in pychrono", "kind": "pychrono", "relevant": ["povray", "demo_post_povray"]}
+{"query": "add a camera sensor in pychrono", "kind": "pychrono", "relevant": ["demo_sen_camera", "camera"]}
+{"query": "create a ChSystemNSC system in pychrono", "kind": "pychrono", "relevant": ["chsystemnsc"]}
+{"query": "set the chrono data path", "kind": "pychrono", "relevant": ["datapath", "data_path", "chronodata"]}
+{"query": "SCMTerrain SetReferenceFrame method", "kind": "cpp", "relevant": ["scmterrain"]}
+{"query": "ChLinkTSDA spring damper", "kind": "cpp", "relevant": ["chlinktsda"]}
+{"query": "how do I bake an apple pie", "kind": "negative", "relevant": []}
+{"query": "what is the capital of France", "kind": "negative", "relevant": []}
+{"query": "recommend a good pizza recipe", "kind": "negative", "relevant": []}
