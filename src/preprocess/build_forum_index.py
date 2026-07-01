@@ -5,6 +5,15 @@ ones), and appends to an existing index directory. If the directory has no
 index yet it creates a fresh one. Idempotent: existing forum/* rows are
 dropped and re-added on each run.
 
+Curation: drops messages older than MIN_YEAR (stale advice, esp. install
+instructions for versions long gone) and drops install/build/compile
+threads (they go stale fastest and the docs cover current install).
+
+Privacy: the chunk header carries only Subject/Date, never the sender's name
+or email. Email addresses, quoted reply-header blocks (Outlook-style
+"From:/Sent:/To:/Subject:" top-posting), the Google Groups unsubscribe
+footer, and the sender's own name are stripped from the body text.
+
 Memory-efficient: streams the mbox line-by-line, embeds and writes in
 batches so the full 600 MB file is never loaded into RAM.
 
@@ -24,13 +33,14 @@ from __future__ import annotations
 
 import email
 import email.header
+import email.utils
 import html
 import json
 import os
 import re
 import sys
 import time
-from typing import Generator
+from typing import Generator, Optional
 
 import numpy as np
 
@@ -45,6 +55,79 @@ MIN_CHARS = 80
 OVERLAP_LINES = 3
 EMBED_BATCH = 512   # chunks per embedding call
 MSG_TEXT_LIMIT = 8000  # max chars extracted per message before truncation
+MIN_YEAR = 2020  # drop older posts: stale advice, esp. install instructions
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_UNSUBSCRIBE_RE = re.compile(
+    r"You received this message because you are subscribed.*?googlegroups\.com\.?"
+    r"(<mailto:[^>]*>)?",
+    re.I | re.S,
+)
+# Gmail/Apple-style quote attribution ("On <date>, <Name> <email> wrote:"). The
+# email inside is sometimes line-wrapped, so the body of the match spans newlines.
+_QUOTE_ATTRIBUTION_RE = re.compile(r"^[ \t>]*On [\s\S]{1,180}?wrote:[ \t]*$", re.I | re.M)
+# Outlook-style top-posted reply headers embedded in the body (not quoted with ">").
+# Field order/set varies a lot across mail clients, so just require a From: line
+# followed within a handful of lines by a Subject: line -- that pairing is specific
+# enough to real reply-header blocks that it won't fire on ordinary body text.
+_REPLY_HEADER_RE = re.compile(r"^[ \t]*From:.*(?:\n.*){0,6}?\n[ \t]*Subject:.*\n?", re.I | re.M)
+_INSTALL_RE = re.compile(
+    r"\b(install(ation|ing|ed)?|compil(e|ing|ation)|cmake|linker error|link error|"
+    r"undefined reference|build (error|fail|issue)s?|failing to build|"
+    r"building chrono|build chrono|configuring chrono)\b",
+    re.I,
+)
+
+
+def _normalize_subject(subject: str) -> str:
+    s = subject
+    for _ in range(3):
+        stripped = re.sub(r"^\s*(re|fwd?)\s*:\s*", "", s, flags=re.I)
+        stripped = re.sub(r"^\s*\[chrono\]\s*", "", stripped, flags=re.I)
+        if stripped == s:
+            break
+        s = stripped
+    return s.strip()
+
+
+def _is_install_thread(subject: str) -> bool:
+    return bool(_INSTALL_RE.search(_normalize_subject(subject)))
+
+
+def _post_year(date_header: str) -> Optional[int]:
+    try:
+        return email.utils.parsedate_to_datetime(date_header).year
+    except Exception:
+        return None
+
+
+def _truncate_at_quote_boundary(text: str) -> str:
+    """Cut a message at its first nested-quote marker.
+
+    Top-posted replies re-quote the entire prior thread below the new content,
+    which is both redundant (same text re-indexed once per reply) and where
+    third-party names/emails accumulate as the thread grows. Keeping only the
+    text above the first quote boundary discards that baggage in one step
+    instead of trying to selectively redact names buried inside it.
+    """
+    cut = len(text)
+    for pat in (_REPLY_HEADER_RE, _QUOTE_ATTRIBUTION_RE):
+        m = pat.search(text)
+        if m:
+            cut = min(cut, m.start())
+    return text[:cut].rstrip()
+
+
+def _scrub_pii(text: str, sender_name: str) -> str:
+    text = _truncate_at_quote_boundary(text)
+    text = _UNSUBSCRIBE_RE.sub("", text)
+    text = _EMAIL_RE.sub("[email removed]", text)
+    if sender_name:
+        for part in sender_name.split():
+            part = re.escape(part.strip("'\""))
+            if len(part) > 2:
+                text = re.sub(rf"\b{part}\b", "[name removed]", text)
+    return text
 
 
 def _decode_header(value: str) -> str:
@@ -197,6 +280,8 @@ def main() -> None:
     forum_chunks_total = 0
     thread_msg_count: dict[str, int] = {}
     skipped = 0
+    skipped_old = 0
+    skipped_install = 0
     msg_count = 0
 
     def flush_batch(buf: list[dict]) -> None:
@@ -234,14 +319,16 @@ def main() -> None:
             continue
 
         sender_name = re.sub(r"<[^>]+>", "", sender).strip().strip('"')
-        header = f"Subject: {subject}\nFrom: {sender_name}\nDate: {date}\n\n"
+        body = _scrub_pii(body, sender_name)
+        clean_subject = _EMAIL_RE.sub("[email removed]", subject)
+        header = f"Subject: {clean_subject}\nDate: {date}\n\n"
         full_text = header + body.strip()
 
         msg_idx = thread_msg_count.get(thread_id, 0) + 1
         thread_msg_count[thread_id] = msg_idx
         path = f"forum/{thread_id}"
 
-        chunk_buf.extend(_split_chunks(path, msg_idx, full_text, subject))
+        chunk_buf.extend(_split_chunks(path, msg_idx, full_text, clean_subject))
 
         if len(chunk_buf) >= EMBED_BATCH:
             flush_batch(chunk_buf)
