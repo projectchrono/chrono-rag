@@ -40,6 +40,8 @@ def answer(
             ),
             "sources": [],
             "insufficient": True,
+            "model": None,
+            "provider": None,
         }
 
     context = "\n\n".join(
@@ -50,4 +52,10 @@ def answer(
     llm = LLM(model=model, provider=provider)
     text = llm.complete(system=f"{ANSWER_SYSTEM}\n\ncontext:\n{context}", user=f"Question: {query}")
     sources: List[str] = [f"{res.path}:{res.line}" for res in r.results]
-    return {"answer": text, "sources": sources, "insufficient": False}
+    return {
+        "answer": text,
+        "sources": sources,
+        "insufficient": False,
+        "model": llm.model,
+        "provider": llm.provider,
+    }

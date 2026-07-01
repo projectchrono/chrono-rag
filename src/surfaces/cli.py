@@ -46,8 +46,12 @@ def _cmd_ask(query: str, k: int, model: str | None, provider: str | None) -> int
         return 1
 
     print(res["answer"])
-    if res["sources"]:
+    if res.get("sources"):
         print("\n[sources] " + ", ".join(res["sources"]))
+    if res.get("model"):
+        n = len(res["sources"])
+        print(f"[answered by {res.get('provider')}/{res['model']}, "
+              f"grounded in {n} source{'s' if n != 1 else ''}]")
     return 0
 
 
