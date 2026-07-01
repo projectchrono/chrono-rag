@@ -1,10 +1,19 @@
 # chrono-rag
 
-A friendly helper for [Project Chrono](https://github.com/projectchrono/chrono) and **PyChrono 10.0**.
-Ask a question in plain English, like *"how do I attach a lidar sensor?"*, and it finds the answer in
-Chrono's own source code, demos, and docs, and points you at the exact files.
+**Answers about Project Chrono and PyChrono 10.0, grounded in Chrono's own code.**
 
-It runs on your own computer. No accounts, no database to install, and no paid key needed to get started.
+A common and undesirable scenario: ask a general chatbot a Chrono question and it will often answer
+confidently, then hand you an API that doesn't exist or advice for the wrong version. chrono-rag is built
+to reduce the likelihood of that happening: for every question it first searches the *actual* current
+Chrono source, demos, and docs, gives the model only what it found, and cites the exact files behind the
+answer. If nothing relevant turns up, it says so instead of guessing.
+
+It is easy to get going: on your own machine, free, with no account or key to get started. Answer with a
+free local model or a top cloud model (your call, per question), and ask from your terminal, your code
+editor, or a local web page.
+
+The result: plain-English Chrono answers you can better trust and verify, built from the real 10.0
+codebase, not the internet's fuzzy memory of it.
 
 > It focuses on **PyChrono 10.0**. Older versions aren't covered yet.
 
@@ -43,7 +52,7 @@ conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box 
 ```
 
 `search` lists the matching code with file names and line numbers. `ask` reads that code and writes you
-an answer, along with the files it used.
+an answer, along with the files it used and the model that wrote it.
 
 ## Use it in your editor
 
@@ -64,6 +73,16 @@ config):
 ```
 
 The very first question downloads a small search model (a one-time download), so it needs internet once.
+
+## Answers you can check
+
+Every answer from the terminal or web app is grounded and labeled: it always searches first and feeds the
+model only what it found (retrieval isn't optional), it shows the exact source files, and it names the
+model that wrote it. If nothing relevant is found, it says so and does not call a model at all, no
+confident guessing. So you can better trust an answer, and also verify it yourself.
+
+(The editor/MCP mode is a convenience where your editor's own model decides when to search, so it doesn't
+carry that guarantee. Use the terminal or web app when you want the grounded, sourced version.)
 
 ## Free or best answers
 
@@ -104,7 +123,7 @@ cd frontend && npm install && npm run dev
 
 ## Under the hood (for the curious)
 
-You don't need any of this to use it.
+You don't need any of the details below to use the tool.
 
 chrono-rag reads a copy of the Chrono code, splits it into meaningful pieces (functions, classes, doc
 sections), and turns each piece into a numeric "fingerprint" using a small model that runs locally. Your
