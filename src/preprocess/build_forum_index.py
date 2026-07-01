@@ -217,6 +217,15 @@ def main() -> None:
         sender = _decode_header(msg.get("From", ""))
         date = msg.get("Date", "")
 
+        year = _post_year(date)
+        if year is not None and year < MIN_YEAR:
+            skipped_old += 1
+            continue
+
+        if _is_install_thread(subject):
+            skipped_install += 1
+            continue
+
         body = _get_plain_text(msg)
         body = _strip_quoted(body)
 
@@ -244,7 +253,8 @@ def main() -> None:
     meta_fh.close()
 
     print(f"[forum] {forum_chunks_total} chunks from {len(thread_msg_count)} threads "
-          f"({skipped}/{msg_count} messages skipped as too short)")
+          f"({skipped}/{msg_count} too short, {skipped_old} pre-{MIN_YEAR}, "
+          f"{skipped_install} install/build threads)")
 
     # Concatenate and save final embeddings
     print("[forum] writing final embeddings.npy ...")
