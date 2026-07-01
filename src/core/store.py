@@ -43,6 +43,33 @@ class VectorStore:
         return [(int(i), float(scores[i])) for i in top]
 
 
+def load_multi_store(dirs: List[str]) -> "VectorStore":
+    """Load and concatenate multiple index directories into one VectorStore.
+
+    All directories must have been built with the same embedding model (same
+    dimension). The first directory's manifest is used as the primary one.
+    """
+    if not dirs:
+        raise ValueError("load_multi_store requires at least one directory")
+    stores = [load_store(d) for d in dirs]
+    if len(stores) == 1:
+        return stores[0]
+    dims = {s.dim for s in stores}
+    if len(dims) > 1:
+        raise ValueError(
+            f"Cannot merge indexes with different embedding dimensions {dims}. "
+            "All indexes must be built with the same model."
+        )
+    emb = np.vstack([s.embeddings for s in stores]).astype(np.float32)
+    meta: List[Dict[str, Any]] = []
+    for s in stores:
+        meta.extend(s.meta)
+    manifest = stores[0].manifest.copy()
+    manifest["n_chunks"] = int(emb.shape[0])
+    manifest["combined_from"] = dirs
+    return VectorStore(embeddings=emb, meta=meta, manifest=manifest)
+
+
 def load_store(index_dir: Optional[str] = None) -> VectorStore:
     """Load and validate the index artifact from `index_dir` (or the default)."""
     d = index_dir or config.index_dir()
