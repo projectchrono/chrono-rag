@@ -1,34 +1,28 @@
 # chrono-rag
 
-**Answers about Project Chrono and PyChrono 10.0, grounded in Chrono's own code.**
+A retrieval-based question-answering tool for [Project Chrono](https://github.com/projectchrono/chrono)
+and PyChrono 10.0. It answers questions using Chrono's own source code, demos, and documentation, and
+cites the files it used.
 
-A common and undesirable scenario: ask a general chatbot a Chrono question and it will often answer
-confidently, then hand you an API that doesn't exist or advice for the wrong version. chrono-rag is built
-to reduce the likelihood of that happening: for every question it first searches the *actual* current
-Chrono source, demos, and docs, gives the LLM only what it found, and cites the exact files behind the
-answer. If nothing relevant turns up, it says so instead of guessing.
+For each question it retrieves the relevant parts of the current Chrono codebase, passes only those to an
+LLM, and has the LLM answer from them. If it finds nothing relevant, it reports that instead of answering.
+Keeping answers tied to the actual code reduces, though does not eliminate, the incorrect or
+version-mismatched answers a general chatbot can give.
 
-It is easy to get going: on your own machine, free, with no account or key to get started. Answer with a
-free local LLM or a top cloud one (your call, per question), and ask from your terminal, your code
-editor, or a local web page.
+It runs locally and needs no account or API key to start. The answer step can use a local LLM or a cloud
+LLM, selectable per query. It can be used from a terminal, a code editor (via MCP), or a local web app.
 
-The result: plain-English Chrono answers you can better trust and verify, built from the real 10.0
-codebase, not the internet's fuzzy memory of it.
+> Scope: PyChrono 10.0. Older versions are not covered.
 
-> It focuses on **PyChrono 10.0**. Older versions aren't covered yet.
+## Ways to use it
 
-## Three ways to use it
-
-Pick whatever fits how you work:
-
-1. **In your terminal** - type a question, get an answer.
-2. **In your editor** (Cursor, Claude Code, VS Code, ...) - ask while you code, and it pulls the
-   relevant Chrono code in for you.
-3. **In a local web page** - a simple browser app, if you prefer clicking to typing.
+1. **Terminal** - type a question, get an answer.
+2. **Editor** (Cursor, Claude Code, VS Code, ...) via MCP - ask while working in code.
+3. **Local web app** - a browser interface.
 
 ## Get started (terminal)
 
-You'll need [conda](https://conda-forge.org/). Three short steps:
+Requires [conda](https://conda-forge.org/).
 
 ```bash
 # 1. Create an environment and install the dependencies
@@ -36,29 +30,27 @@ conda create -n chrono-rag python=3.12 -y
 conda run -n chrono-rag pip install -r requirements.txt
 ```
 
-**2. Get the search index.** This is a prepared snapshot of Chrono's code that makes searching fast.
-Download the ready-made one from the [Releases page](https://github.com/uwsbel/chrono-rag/releases)
-(the `chrono-rag-index-*.zip` file) and unzip it so you have an `index/` folder here. That's the easy
-path; building your own is covered near the bottom.
+**2. Get the search index.** A prepared snapshot of Chrono's code used for search. Download it from the
+[Releases page](https://github.com/uwsbel/chrono-rag/releases) (the `chrono-rag-index-*.zip` file) and
+unzip it so you have an `index/` folder here. Building your own is described below.
 
-**3. Ask away.**
+**3. Run a query.**
 
 ```bash
-# Find the relevant code (instant, nothing else to set up):
+# Find the relevant code (no LLM, nothing else to set up):
 conda run -n chrono-rag python src/surfaces/cli.py search "how do I attach a lidar in pychrono"
 
-# Get a written answer (needs an LLM; see "Free or best answers" below):
+# Get a written answer (needs an LLM; see "Answer LLM" below):
 conda run -n chrono-rag python src/surfaces/cli.py ask "create a rigid body box in pychrono"
 ```
 
-`search` lists the matching code with file names and line numbers. `ask` reads that code and writes you
-an answer, along with the files it used and the LLM that wrote it.
+`search` lists the matching code with file names and line numbers. `ask` passes that code to an LLM and
+prints the answer, the source files used, and the LLM that produced it.
 
 ## Use it in your editor
 
-If your editor supports MCP (Cursor, Claude Code, Windsurf, ...), you can ask Chrono questions right
-where you code. Add this to your editor's MCP settings (for example `.cursor/mcp.json`, or Claude Code's
-config):
+If your editor supports MCP (Cursor, Claude Code, Windsurf, ...), add this to its MCP settings (for
+example `.cursor/mcp.json`, or Claude Code's config):
 
 ```json
 {
@@ -72,27 +64,26 @@ config):
 }
 ```
 
-The very first question downloads a small embedding model (a one-time download), so it needs internet once.
+The first query downloads a small embedding model (a one-time download), so it needs network access once.
 
-## Answers you can check
+## What each answer includes
 
-Every answer from the terminal or web app is grounded and labeled: it always searches first and feeds the
-LLM only what it found (retrieval isn't optional), it shows the exact source files, and it names the
-LLM that wrote it. If nothing relevant is found, it says so and does not call an LLM at all, no
-confident guessing. So you can better trust an answer, and also verify it yourself.
+On the terminal and web app, retrieval always runs before the LLM: the LLM receives only the retrieved
+context, the printed answer lists the source files, and it names the LLM used. If retrieval finds nothing
+relevant, the tool reports that and does not call an LLM.
 
-(The editor/MCP mode is a convenience where your editor's own LLM decides when to search, so it doesn't
-carry that guarantee. Use the terminal or web app when you want the grounded, sourced version.)
+In editor/MCP mode the editor's own LLM decides whether to call the search tool, so retrieval is not
+guaranteed and the answer is not produced by this tool's pipeline. Use the terminal or web app for the
+guaranteed retrieve-then-answer behavior.
 
-## Free or best answers
+## Answer LLM (local or cloud)
 
-Searching for code is always free and works offline. Writing an answer needs an LLM, and you
-choose which one. Set the options below as environment variables
-(PowerShell: `$env:NAME="value"`; macOS/Linux: `export NAME=value`).
+Search runs locally and needs no key. Producing a written answer needs an LLM, which you select. Set the
+options below as environment variables (PowerShell: `$env:NAME="value"`; macOS/Linux: `export NAME=value`).
 
-**Free, on your machine.** Run an LLM locally with [AMD Lemonade](https://lemonade-server.ai/) (or any
-compatible local server) and point chrono-rag at it. No key, no cost, works offline. Local LLMs are
-good, just not as sharp as the big cloud ones.
+**Local LLM.** Run an LLM locally with [AMD Lemonade](https://lemonade-server.ai/) (or any
+OpenAI-compatible local server) and point chrono-rag at it: no key, no per-query cost, works offline.
+Local LLMs are generally less capable than large cloud LLMs.
 
 ```
 CHRONO_RAG_LLM_PROVIDER = local
@@ -100,19 +91,16 @@ CHRONO_RAG_LLM_BASE_URL = http://localhost:13305/api/v1      # your local server
 CHRONO_RAG_LLM_MODEL    = Qwen2.5-Coder-32B-Instruct-GGUF
 ```
 
-**Best quality (paid).** Use a top cloud LLM by providing your own API key, then add `--provider`:
+**Cloud LLM.** Provide your own API key, then add `--provider`:
 
 ```
 ANTHROPIC_API_KEY = sk-ant-...        # your key; roughly a few cents per question
 # then: ... cli.py ask "..." --provider anthropic     (or --provider openai with OPENAI_API_KEY)
 ```
 
-Either way, the part that searches Chrono always runs locally; only the LLM that writes the answer
-changes.
+In both cases search runs locally; only the LLM that writes the answer differs.
 
-## Web app (optional)
-
-Prefer a browser? Run the local web app:
+## Web app
 
 ```bash
 conda run -n chrono-rag python -m uvicorn main:app --app-dir src --port 8000
@@ -121,17 +109,14 @@ cd frontend && npm install && npm run dev
 
 ---
 
-## Under the hood (for the curious)
+## How it works
 
-You don't need any of the details below to use the tool.
-
-chrono-rag reads a copy of the Chrono code, splits it into meaningful pieces (functions, classes, doc
-sections), and turns each piece into a numeric "fingerprint" using a small embedding model that runs locally. Your
-question is matched against those fingerprints, combined with a plain keyword search and an exact
-name match, to surface the most relevant pieces. If nothing relevant comes up, it says so instead of
-guessing. Python/PyChrono code is favored for Python questions. The result is a small `index/` folder
-that stays entirely on your machine. So two models are at play: a small embedding model finds the
-relevant code, and the LLM writes the answer.
+chrono-rag reads a copy of the Chrono code, splits it into units (functions, classes, doc sections), and
+converts each unit into a vector ("fingerprint") with a small local embedding model. A query is matched
+against those vectors, combined with a keyword search and an exact name match, to select the most relevant
+units. If nothing relevant is found, it reports that instead of answering. Python/PyChrono code is
+weighted higher for Python queries. The output is a small `index/` folder that stays on your machine. Two
+models are involved: the embedding model selects the relevant code, and the LLM writes the answer.
 
 ### Build your own index
 
@@ -147,7 +132,7 @@ conda run -n chrono-rag python src/preprocess/build_index.py
 | Variable | What it does | Default |
 |---|---|---|
 | `CHRONO_RAG_INDEX` | where the index folder lives | `<repo>/index` |
-| `CHRONO_RAG_LLM_PROVIDER` | who writes answers: `anthropic` / `openai` / `local` | auto |
+| `CHRONO_RAG_LLM_PROVIDER` | which backend writes answers: `anthropic` / `openai` / `local` | auto |
 | `CHRONO_RAG_LLM_BASE_URL` | address of a local / compatible server | - |
 | `CHRONO_RAG_LLM_MODEL` | which LLM to use | provider default |
 | `CHRONO_RAG_LLM_API_KEY` | API key (a dummy is fine for `local`) | from your environment |
