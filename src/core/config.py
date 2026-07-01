@@ -75,3 +75,15 @@ def llm_api_key() -> Optional[str]:
     """Explicit key from CHRONO_RAG_LLM_API_KEY (a dummy is fine for local)."""
     v = os.getenv("CHRONO_RAG_LLM_API_KEY")
     return v.strip() if v else None
+
+
+def extra_index_dirs() -> list[str]:
+    """Additional index directories from CHRONO_RAG_EXTRA_INDEX (colon-separated).
+
+    Set this to point at supplemental indexes (examples, forum, etc.) that are
+    loaded alongside the main CHRONO_RAG_INDEX at query time.
+    """
+    v = os.getenv("CHRONO_RAG_EXTRA_INDEX")
+    if not v:
+        return []
+    return [os.path.abspath(p.strip()) for p in v.split(":") if p.strip()]

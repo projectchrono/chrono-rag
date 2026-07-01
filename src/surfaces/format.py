@@ -17,7 +17,13 @@ def get_core() -> RetrievalCore:
     """Lazy, shared retrieval-core singleton (holds the warm embedder + indexes)."""
     global _core
     if _core is None:
-        _core = RetrievalCore()
+        extra = config.extra_index_dirs()
+        if extra:
+            from core.store import load_multi_store
+            store = load_multi_store([config.index_dir()] + extra)
+            _core = RetrievalCore(store=store)
+        else:
+            _core = RetrievalCore()
     return _core
 
 
