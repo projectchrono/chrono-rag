@@ -11,7 +11,7 @@ Usage:
 
 Defaults:
   examples_dir  <repo>/../pychrono-examples-10.0
-  out_dir       <repo>/index-new
+  out_dir       <repo>/index-forum
 
 Env:
   CHRONO_RAG_EMBED_MODEL   embedding model (default: BAAI/bge-small-en-v1.5)
@@ -48,7 +48,7 @@ def main() -> None:
     repo_root = os.path.normpath(os.path.join(_SRC, os.pardir))
     default_examples = os.path.join(repo_root, os.pardir, "pychrono-examples-10.0")
     examples_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else default_examples)
-    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(repo_root, "index-new"))
+    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(repo_root, "index-forum"))
     model_name = os.environ.get("CHRONO_RAG_EMBED_MODEL", DEFAULT_MODEL)
 
     print(f"[examples] src={examples_dir}")
