@@ -122,6 +122,32 @@ Instead of downloading the prepared one, build it from a Chrono checkout:
 conda run -n chrono-rag python src/preprocess/build_index.py
 ```
 
+### Optional: forum search
+
+There's a second, optional index built from ProjectChrono examples and the
+[ProjectChrono Google Group](https://groups.google.com/g/projectchrono) forum, covering
+questions people have actually asked (and answered) about PyChrono 10.0. It's curated to stay
+current: posts older than 2020 and install/build/compile threads are dropped, and personal
+information (names, email addresses) is stripped before indexing.
+
+To turn it on, download the `chrono-rag-index-forum-*.zip` file from the
+[Releases page](https://github.com/uwsbel/chrono-rag/releases), unzip it so you have an
+`index-forum/` folder here, and point chrono-rag at it:
+
+```bash
+CHRONO_RAG_EXTRA_INDEX=index-forum conda run -n chrono-rag \
+    python src/surfaces/cli.py search "attach a lidar sensor"
+```
+
+Forum results are ranked slightly below code/docs, so they only show up first when they're
+clearly the best match.
+
+**Refreshing the forum export.** The source data (`topics.mbox`) is a
+[Google Takeout](https://takeout.google.com/) export of the ProjectChrono Google Group, taken
+from an account subscribed to the group. It's never committed (it contains real names and
+email addresses before curation) — to rebuild `index-forum/` from a fresh export, see
+"Supplemental indexes" in `CLAUDE.md`.
+
 ### Settings (environment variables)
 
 | Variable | What it does | Default |
