@@ -42,6 +42,10 @@ def _is_python_chunk(meta: Dict[str, Any]) -> bool:
     return "/python/" in path or "pychrono" in path
 
 
+def _is_forum_chunk(meta: Dict[str, Any]) -> bool:
+    return _lang_of(meta) == "forum" or meta.get("source") == "projectchrono-forum"
+
+
 def _is_pychrono_query(query: str) -> bool:
     q = query.lower()
     return (
@@ -148,6 +152,8 @@ class RetrievalCore:
         for i in list(fused):
             if pyq and _is_python_chunk(meta[i]):
                 fused[i] += config.PYCHRONO_BOOST
+            if _is_forum_chunk(meta[i]):
+                fused[i] -= config.FORUM_PENALTY
             if looks_like_injection(meta[i].get("text", "")):
                 fused[i] -= 1.0  # bury flagged chunks; still surfaced if nothing else
 

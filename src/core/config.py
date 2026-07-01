@@ -12,6 +12,7 @@ VERSION_LABEL = "PyChrono 10.0"
 DENSE_FLOOR = 0.62          # cosine below which a result is weak (bge-small scale; eval-calibrated)
 RRF_K = 60                  # reciprocal-rank-fusion damping constant
 PYCHRONO_BOOST = 0.15       # extra fused weight for Python/PyChrono chunks on Python queries
+FORUM_PENALTY = 0.02        # slight fused-score penalty for forum chunks; code/docs win close calls
 
 
 def _repo_root() -> str:
