@@ -5,8 +5,8 @@ positive queries), and abstention behavior on negatives. Also sweeps the dense
 floor to recommend a calibrated abstention threshold.
 
 Run:
-  python src/eval/run_eval.py            # uses the default index
-  CHRONO_RAG_INDEX=... python src/eval/run_eval.py
+  python -m chrono_rag.eval.run_eval            # uses the default index
+  CHRONO_RAG_INDEX=... python -m chrono_rag.eval.run_eval
 Exit code is non-zero if metrics fall below the gates (for CI).
 """
 from __future__ import annotations
