@@ -12,7 +12,8 @@ version-mismatched answers a general chatbot can give.
 It runs locally and needs no account or API key to start. The answer step can use a local LLM or a cloud
 LLM, selectable per query. It can be used from a terminal, a code editor (via MCP), or a local web app.
 
-> Scope: PyChrono 10.0. Older versions are not covered.
+> Scope: Chrono / PyChrono 10.0 (the index covers Chrono's C++ sources, docs, and Python demos).
+> Older versions are not covered.
 
 ## Quickstart (no API key needed)
 
