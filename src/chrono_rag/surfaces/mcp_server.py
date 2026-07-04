@@ -1,30 +1,23 @@
-r"""Chrono RAG v2 - MCP server.
+r"""Chrono RAG - MCP server.
 
 Exposes the local hybrid retrieval core as MCP tools so any MCP-aware editor
 (Cursor, Claude Code, Windsurf, VS Code Copilot agent, ...) can search Chrono.
-Tool signatures match the chrono-oracle prototype (`search_chrono`,
-`chrono_digest`) so existing editor configs keep working.
 
 Run (stdio):
-  python src/surfaces/mcp_server.py
-  (or: python -m surfaces.mcp_server  with src on PYTHONPATH)
+  chrono-rag-mcp
+  (or: python -m chrono_rag.surfaces.mcp_server)
+
+The first query downloads the small embedding model once; after that everything
+is local. To force fully-offline startup on a machine where the model is already
+cached, set HF_HUB_OFFLINE=1 in the server's environment. (It is deliberately
+NOT forced here: forcing it used to break the very first run, before the model
+was cached.)
 """
 from __future__ import annotations
 
-import os
-import sys
-
-# bge-small ONNX is cached locally after first run; stay offline for fast startup.
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-
-# Bootstrap: put src/ on the path so `python <this file>` works without PYTHONPATH.
-_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
-
 from mcp.server.fastmcp import FastMCP
 
-from surfaces.format import render_digest, render_results
+from chrono_rag.surfaces.format import render_digest, render_results
 
 mcp = FastMCP("chrono-rag")
 
@@ -60,5 +53,10 @@ def chrono_digest(section: str = "") -> str:
     return render_digest(section)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (`chrono-rag-mcp`)."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

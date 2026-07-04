@@ -1,8 +1,8 @@
 name: Build & publish index
 
-# Builds the v2 index from a Chrono checkout, gates it on the retrieval eval,
-# and uploads it as an artifact. Run manually (pick the Chrono tag) or on a
-# release. Nightly/main snapshots are opt-in via workflow_dispatch.
+# Builds the index from a Chrono checkout, gates it on the retrieval eval, and
+# uploads it as a versioned .zip (+ .sha256) matching the naming users see on
+# the Releases page. Run manually (pick the Chrono tag) or on a release.
 on:
   workflow_dispatch:
     inputs:
@@ -16,40 +16,52 @@ jobs:
   build-index:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      CHRONO_REF: ${{ github.event.inputs.chrono_ref || '10.0.0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install (editable)
+        run: pip install -e ".[dev]"
 
-      - name: Clone Chrono (${{ github.event.inputs.chrono_ref || '10.0.0' }})
+      - name: Clone Chrono (${{ env.CHRONO_REF }})
         run: |
-          git clone --depth 1 --branch "${{ github.event.inputs.chrono_ref || '10.0.0' }}" \
+          git clone --depth 1 --branch "$CHRONO_REF" \
             https://github.com/projectchrono/chrono.git chrono-src
 
       - name: Build index
         env:
           CHRONO_RAG_REPO: chrono-src
           CHRONO_RAG_INDEX: index
-        run: python src/preprocess/build_index.py
+        run: python -m chrono_rag.preprocess.build_index
 
       - name: Retrieval eval gate
         env:
           CHRONO_RAG_INDEX: index
-        run: python src/eval/run_eval.py   # non-zero exit fails the build
+        run: python -m chrono_rag.eval.run_eval   # non-zero exit fails the build
 
-      - name: Package index
-        run: tar -czf chrono-rag-index.tar.gz -C index .
+      - name: Package index (versioned zip + sha256)
+        run: |
+          SHORT_SHA=$(git -C chrono-src rev-parse --short HEAD)
+          ASSET="chrono-rag-index-${SHORT_SHA}.zip"
+          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
+          python -c "import shutil; shutil.make_archive('${ASSET%.zip}', 'zip', '.', 'index')"
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          ls -la "$ASSET" "$ASSET.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: chrono-rag-index
-          path: chrono-rag-index.tar.gz
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
 
       - name: Attach to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: chrono-rag-index.tar.gz
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256

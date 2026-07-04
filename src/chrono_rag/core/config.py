@@ -4,7 +4,13 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-# Surfaced to users as the honest scope boundary (Phase 1 is single-version, 10.0 only).
+# GitHub repo that hosts the code and the prebuilt-index release assets.
+# `chrono-rag get-index` downloads from this repo's Releases page. Single place
+# to update if the repository moves to another organization.
+GITHUB_REPO = "uwsbel/chrono-rag"
+
+# Fallback user-facing scope label; the index manifest's `version_label`
+# (written at build time from the indexed Chrono checkout) takes precedence.
 VERSION_LABEL = "PyChrono 10.0"
 
 # Tunable retrieval constants. These are PLACEHOLDERS pending calibration by the
@@ -16,21 +22,29 @@ FORUM_PENALTY = 0.005       # slight fused-score penalty for forum chunks; code/
                             # (RRF scores are ~0.02-0.05; keep this well below one rank step, 1/RRF_K)
 
 
-def _repo_root() -> str:
+def _repo_root() -> Optional[str]:
+    """Root of a source checkout when running from one (editable install),
+    else None (e.g. installed as a wheel into site-packages)."""
+    # config.py lives at <root>/src/chrono_rag/core/config.py
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.normpath(os.path.join(here, os.pardir, os.pardir))
+    root = os.path.normpath(os.path.join(here, os.pardir, os.pardir, os.pardir))
+    if os.path.exists(os.path.join(root, "pyproject.toml")):
+        return root
+    return None
 
 
 def index_dir() -> str:
     """Directory holding embeddings.npy, meta.jsonl, and manifest.json.
 
-    Override with the CHRONO_RAG_INDEX env var; otherwise defaults to an
-    `index/` directory at the repo root (sibling of `src/`).
+    Override with the CHRONO_RAG_INDEX env var; otherwise defaults to `index/`
+    at the repo root when running from a source checkout, else `index/` under
+    the current working directory.
     """
     env = os.getenv("CHRONO_RAG_INDEX")
     if env:
         return os.path.abspath(env)
-    return os.path.join(_repo_root(), "index")
+    root = _repo_root()
+    return os.path.join(root, "index") if root else os.path.abspath("index")
 
 
 def digest_path() -> str:
@@ -42,7 +56,9 @@ def digest_path() -> str:
     env = os.getenv("CHRONO_RAG_DIGEST")
     if env:
         return os.path.abspath(env)
-    return os.path.join(_repo_root(), "docs", "chrono-digest.md")
+    root = _repo_root()
+    base = root if root else os.getcwd()
+    return os.path.join(base, "docs", "chrono-digest.md")
 
 
 # --- LLM backend (BYOK answer path) -----------------------------------------
