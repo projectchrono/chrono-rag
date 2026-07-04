@@ -7,8 +7,8 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from core import config
-from core.retrieval import RetrievalCore
+from chrono_rag.core import config
+from chrono_rag.core.retrieval import RetrievalCore
 
 _core: Optional[RetrievalCore] = None
 
@@ -19,7 +19,7 @@ def get_core() -> RetrievalCore:
     if _core is None:
         extra = config.extra_index_dirs()
         if extra:
-            from core.store import load_multi_store
+            from chrono_rag.core.store import load_multi_store
             store = load_multi_store([config.index_dir()] + extra)
             _core = RetrievalCore(store=store)
         else:

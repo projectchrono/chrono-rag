@@ -94,6 +94,9 @@ class RetrievalCore:
         self.store = store or load_store()
         model = self.store.model_name or DEFAULT_MODEL
         self.embedder = embedder or get_embedder(model)
+        # The user-facing scope label follows the index that is actually loaded
+        # (written at build time); the config constant is only the fallback.
+        self.version_label = self.store.manifest.get("version_label") or config.VERSION_LABEL
         self._bm25 = (
             BM25Index([m.get("text", "") for m in self.store.meta]) if build_bm25 else None
         )
@@ -149,12 +152,13 @@ class RetrievalCore:
         fused = self._rrf([dense_ranked, bm_ranked, sym_ranked])
 
         pyq = _is_pychrono_query(query)
+        flagged = {i: looks_like_injection(meta[i].get("text", "")) for i in fused}
         for i in list(fused):
             if pyq and _is_python_chunk(meta[i]):
                 fused[i] += config.PYCHRONO_BOOST
             if _is_forum_chunk(meta[i]):
                 fused[i] -= config.FORUM_PENALTY
-            if looks_like_injection(meta[i].get("text", "")):
+            if flagged[i]:
                 fused[i] -= 1.0  # bury flagged chunks; still surfaced if nothing else
 
         order = sorted(fused, key=lambda i: -fused[i])[:k]
@@ -170,7 +174,7 @@ class RetrievalCore:
                 text=meta[i].get("text", ""),
                 dense_score=round(dense_score.get(i, 0.0), 4),
                 bm25_score=round(bm_score.get(i, 0.0), 4),
-                flagged_injection=looks_like_injection(meta[i].get("text", "")),
+                flagged_injection=flagged[i],
             )
             for rank, i in enumerate(order, 1)
         ]
@@ -196,5 +200,6 @@ class RetrievalCore:
             results=results,
             insufficient_evidence=insufficient,
             confidence=confidence,
+            version_label=self.version_label,
             notes=notes,
         )

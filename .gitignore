@@ -18,3 +18,8 @@ index-forum/
 ROBOSIMIAN_RIGID/
 DEMO_OUTPUT/
 *_OUTPUT/
+
+# Python packaging build artifacts
+*.egg-info/
+build/
+dist/
