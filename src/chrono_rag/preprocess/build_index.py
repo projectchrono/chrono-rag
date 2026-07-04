@@ -1,13 +1,13 @@
-r"""Build the v2 Chrono RAG index.
+r"""Build the main Chrono RAG index.
 
 Walks a Chrono checkout, chunks it structurally (AST for Python, tree-sitter for
 C++), embeds with the local ONNX embedder, and writes the index artifact
 (embeddings.npy + meta.jsonl + manifest.json).
 
-Run:
-  python src/preprocess/build_index.py
+Run (from the repo root):
+  CHRONO_RAG_REPO=/path/to/chrono python -m chrono_rag.preprocess.build_index
 Env:
-  CHRONO_RAG_REPO         path to the Chrono checkout (default: chrono-oracle's clone)
+  CHRONO_RAG_REPO         path to the Chrono checkout (required)
   CHRONO_RAG_INDEX        output index dir (default: <repo_root>/index)
   CHRONO_RAG_EMBED_MODEL  embedder (default: BAAI/bge-small-en-v1.5)
   CHRONO_RAG_VERSION      Chrono version label (default: parsed, else 10.0)
@@ -23,13 +23,9 @@ import time
 
 import numpy as np
 
-_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
-
-from core import config
-from core.embedder import DEFAULT_MODEL, get_embedder
-from preprocess.chunkers import chunk_file
+from chrono_rag.core import config
+from chrono_rag.core.embedder import DEFAULT_MODEL, get_embedder
+from chrono_rag.preprocess.chunkers import chunk_file
 
 CHUNKER_VERSION = "v2-structural-1"
 MAX_FILE_BYTES = 1_000_000
@@ -41,8 +37,20 @@ _SKIP_DIRS = {".git", "chrono_thirdparty", "data", "images"}
 _SKIP_SUBSTR = ("_generated.h", ".yy.cpp", ".tab.c")
 
 
-def _default_repo() -> str:
-    return os.environ.get("CHRONO_RAG_REPO", r"C:\Users\dn\Documents\chrono-oracle\repo")
+def _repo_or_die() -> str:
+    """Resolve the Chrono checkout to index, or exit with clear guidance."""
+    repo = os.environ.get("CHRONO_RAG_REPO") or (sys.argv[1] if len(sys.argv) > 1 else "")
+    if not repo:
+        print("error: no Chrono checkout given. Set CHRONO_RAG_REPO to your clone of "
+              "https://github.com/projectchrono/chrono (or pass it as the first argument).",
+              file=sys.stderr)
+        raise SystemExit(2)
+    repo = os.path.abspath(repo)
+    if not os.path.isdir(repo):
+        print(f"error: CHRONO_RAG_REPO points at {repo!r}, which is not a directory.",
+              file=sys.stderr)
+        raise SystemExit(2)
+    return repo
 
 
 def _repo_commit(repo: str) -> str:
@@ -70,6 +78,12 @@ def _chrono_version(repo: str) -> str:
     return "10.0"
 
 
+def _version_label(version: str) -> str:
+    """'10.0.1' -> 'PyChrono 10.0' (the user-facing scope label)."""
+    major_minor = ".".join(version.split(".")[:2])
+    return f"PyChrono {major_minor}"
+
+
 def _want(path: str) -> bool:
     base = os.path.basename(path)
     if any(s in base for s in _SKIP_SUBSTR):
@@ -95,7 +109,7 @@ def _iter_files(repo: str):
 
 
 def main() -> None:
-    repo = _default_repo()
+    repo = _repo_or_die()
     out = os.environ.get("CHRONO_RAG_INDEX") or config.index_dir()
     model_name = os.environ.get("CHRONO_RAG_EMBED_MODEL", DEFAULT_MODEL)
     os.makedirs(out, exist_ok=True)
@@ -107,6 +121,10 @@ def main() -> None:
 
     files = list(_iter_files(repo))
     print(f"[build] {len(files)} files to chunk")
+    if not files:
+        print(f"error: found no source files under {repo!r}. Is CHRONO_RAG_REPO "
+              "pointing at a Chrono checkout?", file=sys.stderr)
+        raise SystemExit(2)
 
     meta = []
     for fpath in files:
@@ -135,6 +153,7 @@ def main() -> None:
         for m in meta:
             fh.write(json.dumps(m, ensure_ascii=False) + "\n")
 
+    version = _chrono_version(repo)
     manifest = {
         "model": model_name,
         "dim": int(emb.shape[1]),
@@ -143,9 +162,9 @@ def main() -> None:
         "chunker_version": CHUNKER_VERSION,
         "index_format": 2,
         "commit": _repo_commit(repo),
-        "chrono_version": _chrono_version(repo),
-        "version_label": config.VERSION_LABEL,
-        "built_by": "chrono-rag v2",
+        "chrono_version": version,
+        "version_label": _version_label(version),
+        "built_by": "chrono-rag",
     }
     with open(os.path.join(out, "manifest.json"), "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)

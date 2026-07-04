@@ -3,15 +3,22 @@
 CLAUDE.md
 repos/
 __pycache__/
-docs/superpowers/
 .vscode/
+.idea/
 .history/
+.DS_Store
+Thumbs.db
 
-# v2 build artifacts (shipped as release assets, not committed)
+# Python packaging build artifacts
+*.egg-info/
+build/
+dist/
+
+# Build artifacts (shipped as release assets, not committed)
 index/
 index-forum/
 
-# forum export dump (private data; not committed, see README for how to get one)
+# forum export dump (private data; not committed, see DATA.md)
 *.mbox
 
 # Stray simulation-output dirs from running PyChrono demos during local verification

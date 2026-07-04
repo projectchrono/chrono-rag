@@ -80,6 +80,11 @@ def load_store(index_dir: Optional[str] = None) -> VectorStore:
             f"No index at {d!r} (missing embeddings.npy). Build or download the "
             "index first (set CHRONO_RAG_INDEX to point elsewhere)."
         )
+    if not os.path.exists(meta_path):
+        raise FileNotFoundError(
+            f"Index at {d!r} is incomplete (embeddings.npy present but meta.jsonl "
+            "missing). Re-download or rebuild it."
+        )
 
     emb = np.load(emb_path).astype(np.float32)
 

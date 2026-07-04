@@ -11,8 +11,8 @@ from typing import List
 
 import numpy as np
 
-# Candidates benchmarked by the eval harness. bge-small is what chrono-oracle
-# proved out; nomic is the code-aware alternative.
+# Small, fast, and good enough on this corpus per the eval harness. Must match
+# the model recorded in the index manifest (queries and index embed alike).
 DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
 
 

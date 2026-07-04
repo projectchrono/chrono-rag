@@ -5,22 +5,17 @@ positive queries), and abstention behavior on negatives. Also sweeps the dense
 floor to recommend a calibrated abstention threshold.
 
 Run:
-  python src/eval/run_eval.py            # uses the default index
-  CHRONO_RAG_INDEX=... python src/eval/run_eval.py
+  python -m chrono_rag.eval.run_eval            # uses the default index
+  CHRONO_RAG_INDEX=... python -m chrono_rag.eval.run_eval
 Exit code is non-zero if metrics fall below the gates (for CI).
 """
 from __future__ import annotations
 
 import json
 import os
-import sys
 
-_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
-
-from core import config
-from core.retrieval import RetrievalCore
+from chrono_rag.core import config
+from chrono_rag.core.retrieval import RetrievalCore
 
 K = 8
 GOLD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gold.jsonl")
