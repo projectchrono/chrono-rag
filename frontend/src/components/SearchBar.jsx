@@ -31,9 +31,9 @@ export function SearchBar({ value, onChange, onSubmit, disabled, models, model, 
           <div className={styles.toggle}>
             {models.map(m => (
               <button
-                key={m.id}
-                className={`${styles.toggleOption} ${model === m.id ? styles.toggleActive : ''}`}
-                onClick={() => onModelChange(m.id)}
+                key={m.key}
+                className={`${styles.toggleOption} ${model === m.key ? styles.toggleActive : ''}`}
+                onClick={() => onModelChange(m.key)}
                 disabled={disabled}
                 type="button"
               >
