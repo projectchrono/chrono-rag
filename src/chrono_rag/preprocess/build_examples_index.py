@@ -6,12 +6,12 @@ meta.jsonl, and manifest.json. Does NOT touch the main Chrono index.
 Run build_forum_index.py on the same output directory afterward to add
 forum posts to the same supplemental index.
 
-Usage:
-  python src/preprocess/build_examples_index.py [examples_dir] [out_dir]
+Usage (from the repo root):
+  python -m chrono_rag.preprocess.build_examples_index [examples_dir] [out_dir]
 
-Defaults:
-  examples_dir  <repo>/../pychrono-examples-10.0
-  out_dir       <repo>/index-forum
+Defaults (relative to the current directory):
+  examples_dir  ../pychrono-examples-10.0
+  out_dir       ./index-forum
 
 Env:
   CHRONO_RAG_EMBED_MODEL   embedding model (default: BAAI/bge-small-en-v1.5)
@@ -25,12 +25,8 @@ import time
 
 import numpy as np
 
-_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
-
-from core.embedder import DEFAULT_MODEL, get_embedder
-from preprocess.chunkers import chunk_file
+from chrono_rag.core.embedder import DEFAULT_MODEL, get_embedder
+from chrono_rag.preprocess.chunkers import chunk_file
 
 _EXTS = {".py", ".md", ".rst", ".txt"}
 _SKIP_DIRS = {".git", "__pycache__", "DEMO_OUTPUT"}
@@ -45,10 +41,9 @@ def _iter_files(root: str):
 
 
 def main() -> None:
-    repo_root = os.path.normpath(os.path.join(_SRC, os.pardir))
-    default_examples = os.path.join(repo_root, os.pardir, "pychrono-examples-10.0")
+    default_examples = os.path.join(os.pardir, "pychrono-examples-10.0")
     examples_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else default_examples)
-    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(repo_root, "index-forum"))
+    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else "index-forum")
     model_name = os.environ.get("CHRONO_RAG_EMBED_MODEL", DEFAULT_MODEL)
 
     print(f"[examples] src={examples_dir}")

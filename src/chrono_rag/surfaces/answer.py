@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from surfaces.format import get_core
+from chrono_rag.surfaces.format import get_core
 
 ANSWER_SYSTEM = (
     "You are an expert assistant for Chrono and PyChrono, the physics-based "
@@ -47,7 +47,7 @@ def answer(
     context = "\n\n".join(
         f"### {res.path}:{res.line} [{res.language}]\n{res.text}" for res in r.results
     )
-    from inference.llm import LLM  # lazy: only needed for the BYOK answer path
+    from chrono_rag.inference.llm import LLM  # lazy: only needed for the BYOK answer path
 
     llm = LLM(model=model, provider=provider)
     text = llm.complete(system=f"{ANSWER_SYSTEM}\n\ncontext:\n{context}", user=f"Question: {query}")

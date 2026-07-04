@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from core import config
+from chrono_rag.core import config
 
 
 class LLM:

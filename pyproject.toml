@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chrono-rag"
+version = "0.9.0"
+description = "Local retrieval assistant for Project Chrono / PyChrono 10.0: search Chrono's own code and docs, get cited answers."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Simulation-Based Engineering Laboratory" }]
+keywords = ["chrono", "pychrono", "simulation", "retrieval", "rag", "mcp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+# Retrieval core (fully local; no API key required). tree-sitter is only used
+# when building an index, but it is small, so it stays in the core set to keep
+# the extras story simple.
+dependencies = [
+    "numpy>=1.26",
+    "fastembed>=0.7",          # ONNX text embeddings (no torch)
+    "rank-bm25>=0.2.2",        # in-process lexical search
+    "tree-sitter>=0.23",       # structural C++ chunking (index build)
+    "tree-sitter-cpp>=0.23",   # prebuilt grammar (no compiler needed)
+]
+
+[project.optional-dependencies]
+# BYOK answer path (CLI `ask` / web /search). Floors are the versions verified
+# to work with the models in inference/llm.py (adaptive thinking needs a
+# recent anthropic SDK; older floors fail at runtime).
+llm = [
+    "anthropic>=0.112",
+    "openai>=2.0",
+]
+# FastAPI web surface
+web = [
+    "fastapi>=0.111",
+    "uvicorn>=0.29",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+]
+# MCP server surface (editors)
+mcp = [
+    "mcp>=1.2",
+]
+dev = [
+    "pytest>=8.0",
+]
+all = ["chrono-rag[llm,web,mcp]"]
+
+[project.scripts]
+chrono-rag = "chrono_rag.surfaces.cli:main"
+chrono-rag-mcp = "chrono_rag.surfaces.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/uwsbel/chrono-rag"
+Issues = "https://github.com/uwsbel/chrono-rag/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"chrono_rag.eval" = ["gold.jsonl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

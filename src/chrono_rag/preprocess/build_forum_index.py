@@ -19,12 +19,12 @@ batches so the full 600 MB file is never loaded into RAM.
 
 Run after build_examples_index.py so both sources share one index-forum/ dir.
 
-Usage:
-  python src/preprocess/build_forum_index.py [mbox_path] [out_dir]
+Usage (from the repo root):
+  python -m chrono_rag.preprocess.build_forum_index [mbox_path] [out_dir]
 
-Defaults:
-  mbox_path   <repo>/topics.mbox
-  out_dir     <repo>/index-forum
+Defaults (relative to the current directory):
+  mbox_path   ./topics.mbox
+  out_dir     ./index-forum
 
 Env:
   CHRONO_RAG_EMBED_MODEL   embedding model (default: BAAI/bge-small-en-v1.5)
@@ -44,11 +44,7 @@ from typing import Generator, Optional
 
 import numpy as np
 
-_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
-
-from core.embedder import DEFAULT_MODEL, get_embedder
+from chrono_rag.core.embedder import DEFAULT_MODEL, get_embedder
 
 MAX_CHARS = 1600
 MIN_CHARS = 80
@@ -248,9 +244,8 @@ def _stream_messages(mbox_path: str) -> Generator[email.message.Message, None, N
 
 
 def main() -> None:
-    repo_root = os.path.normpath(os.path.join(_SRC, os.pardir))
-    mbox_path = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(repo_root, "topics.mbox"))
-    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(repo_root, "index-forum"))
+    mbox_path = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "topics.mbox")
+    out_dir = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else "index-forum")
     model_name = os.environ.get("CHRONO_RAG_EMBED_MODEL", DEFAULT_MODEL)
 
     print(f"[forum] mbox={mbox_path}")
