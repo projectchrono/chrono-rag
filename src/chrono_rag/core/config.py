@@ -13,10 +13,14 @@ GITHUB_REPO = "uwsbel/chrono-rag"
 # (written at build time from the indexed Chrono checkout) takes precedence.
 VERSION_LABEL = "PyChrono 10.0"
 
-# Tunable retrieval constants. These are PLACEHOLDERS pending calibration by the
-# eval harness (the whole reason the harness is a first-class Phase 1 deliverable).
-DENSE_FLOOR = 0.62          # cosine below which a result is weak (bge-small scale; eval-calibrated)
-RRF_K = 60                  # reciprocal-rank-fusion damping constant
+# Tunable retrieval constants, validated against the eval harness
+# (chrono_rag.eval.run_eval on the 10.0 index: recall@8 0.93, MRR 0.72, all
+# negatives abstain, no false abstentions). Re-run the harness when changing
+# any of these or rebuilding against a new Chrono version.
+DENSE_FLOOR = 0.62          # cosine below which a result is weak (bge-small scale). The
+                            # harness's floor sweep shows clean positive/negative separation
+                            # from 0.62 to 0.76; 0.62 is the conservative end of that plateau.
+RRF_K = 60                  # reciprocal-rank-fusion damping constant (standard default)
 PYCHRONO_BOOST = 0.15       # extra fused weight for Python/PyChrono chunks on Python queries
 FORUM_PENALTY = 0.005       # slight fused-score penalty for forum chunks; code/docs win close calls
                             # (RRF scores are ~0.02-0.05; keep this well below one rank step, 1/RRF_K)
