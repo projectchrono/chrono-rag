@@ -128,7 +128,7 @@ There's a second, optional index built from ProjectChrono examples and the
 [ProjectChrono Google Group](https://groups.google.com/g/projectchrono) forum, covering
 questions people have actually asked (and answered) about PyChrono 10.0. It's curated to stay
 current: posts older than 2020 and install/build/compile threads are dropped, and personal
-information (names, email addresses) is stripped before indexing.
+information (email addresses, and author and greeting names) is stripped before indexing.
 
 To turn it on, download the `chrono-rag-index-forum-*.zip` file from the
 [Releases page](https://github.com/uwsbel/chrono-rag/releases), unzip it so you have an
@@ -144,9 +144,18 @@ clearly the best match.
 
 **Refreshing the forum export.** The source data (`topics.mbox`) is a
 [Google Takeout](https://takeout.google.com/) export of the ProjectChrono Google Group, taken
-from an account subscribed to the group. It's never committed (it contains real names and
-email addresses before curation) — to rebuild `index-forum/` from a fresh export, see
-"Supplemental indexes" in `CLAUDE.md`.
+from an account subscribed to the group. It is never committed (before curation it contains real
+names and email addresses). To rebuild `index-forum/` from a fresh export, run from the repo root:
+
+```bash
+# 1. Build the examples index (defaults to a sibling pychrono-examples-10.0 checkout):
+conda run -n chrono-rag python src/preprocess/build_examples_index.py
+# 2. Append the curated, PII-scrubbed forum posts into the same index-forum/ folder:
+conda run -n chrono-rag python src/preprocess/build_forum_index.py path/to/topics.mbox index-forum
+```
+
+On Windows, separate multiple `CHRONO_RAG_EXTRA_INDEX` paths with `;` (the OS path separator),
+not `:`.
 
 ### Settings (environment variables)
 

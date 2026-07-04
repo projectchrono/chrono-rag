@@ -101,7 +101,7 @@ def main() -> None:
         json.dump(manifest, fh, indent=2)
 
     print(f"[examples] DONE: {emb.shape[0]} chunks, {len(files)} files, "
-          f"{time.time() - t0:.0f}s → {out_dir}")
+          f"{time.time() - t0:.0f}s -> {out_dir}")
 
 
 if __name__ == "__main__":

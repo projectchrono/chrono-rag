@@ -77,6 +77,17 @@ _INSTALL_RE = re.compile(
     r"building chrono|build chrono|configuring chrono)\b",
     re.I,
 )
+# Greeting / vocative openers ("Hi Radu,", "Dear Tobias", "Thanks Marco,"). Only the
+# sender's own name is known from the header, so a recipient/third-party first name in an
+# opening greeting is the common residual. Strip the capitalized name token(s) right after
+# a greeting word. Kept deliberately narrow (greeting word + Capitalized name at a line
+# start, followed by punctuation or end of line) so it does not eat ordinary Capitalized
+# words mid-sentence or API names like "Hi ChBody works".
+_GREETING_RE = re.compile(
+    r"(?m)^([ \t]*(?i:hi|hello|dear|hey|thanks|thank you|thankyou)\b[ \t]+)"
+    r"[A-Z][A-Za-z'’.\-]+(?:[ \t]+[A-Z][A-Za-z'’.\-]+)?"
+    r"(?=[ \t]*[,:!.]|[ \t]*$)"
+)
 
 
 def _normalize_subject(subject: str) -> str:
@@ -127,6 +138,7 @@ def _scrub_pii(text: str, sender_name: str) -> str:
             part = re.escape(part.strip("'\""))
             if len(part) > 2:
                 text = re.sub(rf"\b{part}\b", "[name removed]", text)
+    text = _GREETING_RE.sub(lambda m: m.group(1) + "[name removed]", text)
     return text
 
 
@@ -160,6 +172,9 @@ def _get_plain_text(msg: email.message.Message) -> str:
             if payload:
                 charset = part.get_content_charset() or "utf-8"
                 text = payload.decode(charset, errors="ignore")[:MSG_TEXT_LIMIT * 3]
+                # Drop <style>/<script> bodies first; stripping only tags would leave
+                # their CSS/JS text (e.g. @font-face rules) in the indexed chunk.
+                text = re.sub(r"(?is)<(style|script)\b[^>]*>.*?</\1>", " ", text)
                 text = re.sub(r"<[^>]+>", " ", text)
                 return html.unescape(text)[:MSG_TEXT_LIMIT]
     return ""
@@ -360,7 +375,7 @@ def main() -> None:
     with open(man_path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)
 
-    print(f"[forum] DONE: index now {emb.shape[0]} chunks in {time.time() - t0:.0f}s → {out_dir}")
+    print(f"[forum] DONE: index now {emb.shape[0]} chunks in {time.time() - t0:.0f}s -> {out_dir}")
 
 
 if __name__ == "__main__":

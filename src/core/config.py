@@ -12,7 +12,8 @@ VERSION_LABEL = "PyChrono 10.0"
 DENSE_FLOOR = 0.62          # cosine below which a result is weak (bge-small scale; eval-calibrated)
 RRF_K = 60                  # reciprocal-rank-fusion damping constant
 PYCHRONO_BOOST = 0.15       # extra fused weight for Python/PyChrono chunks on Python queries
-FORUM_PENALTY = 0.02        # slight fused-score penalty for forum chunks; code/docs win close calls
+FORUM_PENALTY = 0.005       # slight fused-score penalty for forum chunks; code/docs win close calls
+                            # (RRF scores are ~0.02-0.05; keep this well below one rank step, 1/RRF_K)
 
 
 def _repo_root() -> str:
@@ -79,12 +80,14 @@ def llm_api_key() -> Optional[str]:
 
 
 def extra_index_dirs() -> list[str]:
-    """Additional index directories from CHRONO_RAG_EXTRA_INDEX (colon-separated).
+    """Additional index directories from CHRONO_RAG_EXTRA_INDEX.
 
-    Set this to point at supplemental indexes (examples, forum, etc.) that are
-    loaded alongside the main CHRONO_RAG_INDEX at query time.
+    Multiple directories are separated by os.pathsep (';' on Windows, ':' on
+    Unix); splitting on a bare ':' would shatter a Windows absolute path at its
+    drive-letter colon. Set this to point at supplemental indexes (examples,
+    forum, etc.) that are loaded alongside the main CHRONO_RAG_INDEX at query time.
     """
     v = os.getenv("CHRONO_RAG_EXTRA_INDEX")
     if not v:
         return []
-    return [os.path.abspath(p.strip()) for p in v.split(":") if p.strip()]
+    return [os.path.abspath(p.strip()) for p in v.split(os.pathsep) if p.strip()]
