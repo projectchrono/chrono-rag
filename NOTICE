@@ -1,0 +1,31 @@
+chrono-rag
+Copyright (c) 2026, Simulation-Based Engineering Laboratory
+
+This project is distributed under the BSD 3-Clause License (see LICENSE).
+
+Third-party content redistributed by this project:
+
+1. Project Chrono source excerpts.
+   The prebuilt search index published on this repository's Releases page (and any
+   index built with the tools herein) contains excerpts (functions, classes,
+   documentation sections) of the Project Chrono source code, and the search/answer
+   surfaces reprint those excerpts with file and line citations.
+
+   Project Chrono is Copyright (c) Project Chrono Development Team and is licensed
+   under the BSD 3-Clause License. Source: https://github.com/projectchrono/chrono
+   The Chrono license and copyright notice are retained per that license.
+
+2. PyChrono example scripts.
+   The optional supplemental index contains excerpts of the pychrono-examples-10.0
+   collection (https://github.com/projectchrono/pychrono-examples-10.0), BSD
+   3-Clause, same attribution as above.
+
+3. ProjectChrono Google Group forum posts.
+   The optional supplemental index contains curated, PII-scrubbed excerpts of posts
+   from the publicly readable ProjectChrono Google Group
+   (https://groups.google.com/g/projectchrono). See DATA.md for provenance, the
+   scrubbing applied, and how to request removal of content.
+
+4. Embedding model.
+   Search uses the BAAI/bge-small-en-v1.5 embedding model (MIT license), downloaded
+   at first use from its upstream distribution; it is not redistributed here.
