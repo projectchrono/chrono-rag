@@ -15,11 +15,11 @@ was cached.)
 """
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from chrono_rag.surfaces.format import render_digest, render_results
 
-mcp = FastMCP("chrono-rag")
+mcp = MCPServer("chrono-rag")
 
 
 @mcp.tool()

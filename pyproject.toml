@@ -47,7 +47,7 @@ web = [
 ]
 # MCP server surface (editors)
 mcp = [
-    "mcp>=1.2",
+    "mcp>=2.1",
 ]
 dev = [
     "pytest>=8.0",
