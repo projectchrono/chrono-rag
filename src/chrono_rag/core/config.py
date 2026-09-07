@@ -7,7 +7,7 @@ from typing import Optional
 # GitHub repo that hosts the code and the prebuilt-index release assets.
 # `chrono-rag get-index` downloads from this repo's Releases page. Single place
 # to update if the repository moves to another organization.
-GITHUB_REPO = "uwsbel/chrono-rag"
+GITHUB_REPO = "projectchrono/chrono-rag"
 
 # Fallback user-facing scope label; the index manifest's `version_label`
 # (written at build time from the indexed Chrono checkout) takes precedence.

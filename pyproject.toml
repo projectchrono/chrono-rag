@@ -60,8 +60,8 @@ chrono-rag = "chrono_rag.surfaces.cli:main"
 chrono-rag-mcp = "chrono_rag.surfaces.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/uwsbel/chrono-rag"
-Issues = "https://github.com/uwsbel/chrono-rag/issues"
+Homepage = "https://github.com/projectchrono/chrono-rag"
+Issues = "https://github.com/projectchrono/chrono-rag/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
