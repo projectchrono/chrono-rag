@@ -209,8 +209,9 @@ def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL) -> 
     if os.path.exists(man_path):
         with open(man_path, encoding="utf-8") as fh:
             man = json.load(fh)
-        print(f"[get-index] scope: {man.get('version_label', '?')}  "
-              f"(commit {str(man.get('commit', '?'))[:9]}, built {man.get('built_at', '?')})")
+        if man.get("version_label"):  # the forum index carries no scope label
+            print(f"[get-index] scope: {man['version_label']}  "
+                  f"(commit {str(man.get('commit', '?'))[:9]}, built {man.get('built_at', '?')})")
     if forum:
         sep = os.pathsep
         print(f"[get-index] enable it with:  CHRONO_RAG_EXTRA_INDEX={dest}")
