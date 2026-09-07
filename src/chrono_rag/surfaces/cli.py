@@ -4,6 +4,7 @@ Subcommands over the shared retrieval core:
   search     - print the top retrieved Chrono/PyChrono chunks (no LLM, no key).
   ask        - BYOK: retrieve, then have an LLM answer from the retrieved context.
   get-index  - download the prebuilt search index from the GitHub Releases page.
+  mcp-config - print the MCP server entry (absolute paths) to paste into an editor.
   doctor     - check the local setup (index, model cache, keys, extras).
 
 Run (after `pip install -e .`):
@@ -220,6 +221,44 @@ def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL) -> 
 
 
 # ---------------------------------------------------------------------------
+# mcp-config
+# ---------------------------------------------------------------------------
+
+def _mcp_executable() -> str:
+    """Absolute path of the `chrono-rag-mcp` console script in this env.
+
+    Editors launch MCP servers without the conda env activated, so the config
+    must carry the absolute path; users should not have to find it by hand.
+    """
+    env_dir = os.path.dirname(sys.executable)
+    name = "chrono-rag-mcp.exe" if os.name == "nt" else "chrono-rag-mcp"
+    for cand in (os.path.join(env_dir, name), os.path.join(env_dir, "Scripts", name),
+                 os.path.join(env_dir, "bin", name)):
+        if os.path.exists(cand):
+            return os.path.abspath(cand)
+    return shutil.which("chrono-rag-mcp") or name
+
+
+def mcp_config() -> dict:
+    """The `mcpServers` entry for this installation (paths absolute)."""
+    env = {"CHRONO_RAG_INDEX": config.index_dir()}
+    extra = os.environ.get("CHRONO_RAG_EXTRA_INDEX")
+    if extra:
+        env["CHRONO_RAG_EXTRA_INDEX"] = extra
+    return {"mcpServers": {"chrono-rag": {"command": _mcp_executable(), "env": env}}}
+
+
+def _cmd_mcp_config() -> int:
+    """Print the snippet as JSON on stdout (pipe-friendly); hints go to stderr."""
+    print(json.dumps(mcp_config(), indent=2))
+    sys.stdout.flush()  # keep the JSON ahead of the unbuffered stderr hint
+    print("\nPaste the entry above into your editor's MCP settings (Cursor: .cursor/mcp.json; "
+          "Claude Code: `claude mcp add-json chrono-rag '<the chrono-rag object>'`; "
+          "VS Code: .vscode/mcp.json). Restart the editor afterwards.", file=sys.stderr)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # doctor
 # ---------------------------------------------------------------------------
 
@@ -294,7 +333,7 @@ def _cmd_doctor() -> int:
 
     # 4. optional surfaces / extras
     print(f"[{'ok' if _have('mcp') else 'note':4}] MCP surface "
-          f"({'installed' if _have('mcp') else 'pip install -e .[mcp]'})")
+          f"({'installed; run `chrono-rag mcp-config` for the editor snippet' if _have('mcp') else 'pip install -e .[mcp]'})")
     print(f"[{'ok' if _have('fastapi') else 'note':4}] web surface "
           f"({'installed' if _have('fastapi') else 'pip install -e .[web]'})")
 
@@ -361,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
     pg.add_argument("--force", action="store_true", help="replace an existing index")
 
     sub.add_parser("doctor", help="check the local setup (index, model cache, keys)")
+    sub.add_parser("mcp-config", help="print the editor (MCP) config entry with absolute paths")
 
     args = p.parse_args(argv)
     if args.cmd == "search":
@@ -371,6 +411,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_get_index(args.forum, args.force, args.channel)
     if args.cmd == "doctor":
         return _cmd_doctor()
+    if args.cmd == "mcp-config":
+        return _cmd_mcp_config()
     return 2
 
 

@@ -18,6 +18,8 @@ First release from the official home, `projectchrono/chrono-rag` (moved from `uw
 - Index builder: indexes only git-tracked files (a local build tree in the checkout used to leak in).
 - Eval: gold entries can be channel-specific; six entries added for post-10.0 content.
 - Digest (`chrono_digest`): refreshed for current main, with main-only items marked.
+- Onboarding: the setup scripts now also download the index; new `chrono-rag mcp-config` prints the
+  editor (MCP) config entry with absolute paths; README restructured install-first, advanced material last.
 - Repository: the 51 MB legacy `chrono_embeddings.zip` was removed from history and stale
   branches deleted, so a clone is a few MB.
 

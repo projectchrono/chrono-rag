@@ -228,6 +228,19 @@ def test_llm_env_provider_and_default_model(clean_llm_env):
 
 # --- MCP surface --------------------------------------------------------------
 
+def test_mcp_config_is_pasteable_json(capsys):
+    """`chrono-rag mcp-config` prints one JSON object with absolute paths, so a
+    user can paste it into an editor without locating the conda env by hand."""
+    from chrono_rag.surfaces import cli
+
+    assert cli.main(["mcp-config"]) == 0
+    out = capsys.readouterr().out
+    cfg = json.loads(out)
+    entry = cfg["mcpServers"]["chrono-rag"]
+    assert entry["command"].endswith(("chrono-rag-mcp", "chrono-rag-mcp.exe"))
+    assert os.path.isabs(entry["env"]["CHRONO_RAG_INDEX"])
+
+
 def test_mcp_server_exposes_tools():
     """The server object must build on whichever mcp major is installed (1.x
     FastMCP or 2.x MCPServer) and register both tools under their stable names."""
