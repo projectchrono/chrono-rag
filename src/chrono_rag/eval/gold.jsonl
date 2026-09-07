@@ -16,3 +16,9 @@
 {"query": "how do I bake an apple pie", "kind": "negative", "relevant": []}
 {"query": "what is the capital of France", "kind": "negative", "relevant": []}
 {"query": "recommend a good pizza recipe", "kind": "negative", "relevant": []}
+{"query": "write simulation output to HDF5 with ChOutput", "kind": "cpp", "relevant": ["choutput"]}
+{"query": "build Chrono FSI on an AMD GPU with HIP and ROCm", "kind": "cpp", "relevant": ["readme_amd_gpu", "amd_instinct", "amd_tuning", "chronogpu"], "channels": ["main"]}
+{"query": "Vulkan ray tracing camera backend in Chrono::Sensor", "kind": "cpp", "relevant": ["vulkan", "chrono_sensor/cmakelists"], "channels": ["main"]}
+{"query": "preCICE adapter for co-simulation with an external CFD solver", "kind": "cpp", "relevant": ["precice"], "channels": ["main"]}
+{"query": "GPU backend for SCM deformable terrain", "kind": "cpp", "relevant": ["scmgpu", "scmterraingpu", "scm_gpu", "scmterrain"], "channels": ["main"]}
+{"query": "multiphysics FEA thermo-elastic field model", "kind": "cpp", "relevant": ["multiphysics", "chfemodel", "chfield"], "channels": ["main"]}

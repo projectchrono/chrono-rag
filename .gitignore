@@ -25,3 +25,6 @@ index-forum/
 ROBOSIMIAN_RIGID/
 DEMO_OUTPUT/
 *_OUTPUT/
+
+# Local channel builds (main snapshot / release), never committed
+index-*/

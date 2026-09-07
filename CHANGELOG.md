@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.0 (2026-09)
+
+First release from the official home, `projectchrono/chrono-rag` (moved from `uwsbel`).
+
+- MCP: works with both MCP Python SDK majors. 2.x renamed `FastMCP` to `MCPServer` and removed
+  `mcp.server.fastmcp` (PR #5, @jamesh4470); the server now imports `MCPServer` and falls back to
+  `FastMCP`, so existing 1.x installs keep working. CI exercises both.
+- Index channels: `chrono-rag get-index --channel main|10.0.0`. `main` (default) is a dated
+  snapshot of Chrono's development branch and covers post-10.0 work (AMD ROCm/HIP GPU backend,
+  Vulkan/Metal sensor backends, FEA multiphysics, preCICE, FSI-SPH API changes, SCM GPU terrain);
+  `10.0.0` matches the conda PyChrono release. The manifest records `channel`, `chrono_ref`,
+  `built_at`, and the scope label printed with every answer now names a snapshot by date.
+- Monthly index refresh: the publish workflow runs on a schedule, gates on the retrieval eval,
+  skips when Chrono's commit is already published, and creates the release itself
+  (`index-main-YYYY-MM-DD`). Release-asset names are the contract with `get-index`.
+- Index builder: indexes only git-tracked files (a local build tree in the checkout used to leak in).
+- Eval: gold entries can be channel-specific; six entries added for post-10.0 content.
+- Digest (`chrono_digest`): refreshed for current main, with main-only items marked.
+- Repository: the 51 MB legacy `chrono_embeddings.zip` was removed from history and stale
+  branches deleted, so a clone is a few MB.
+
 ## 0.9.0 (2026-07)
 
 Preparation release for the move to an official home.

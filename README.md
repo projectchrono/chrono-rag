@@ -1,7 +1,7 @@
 # chrono-rag
 
 A retrieval-based question-answering tool for [Project Chrono](https://github.com/projectchrono/chrono)
-and PyChrono 10.0. It answers questions using Chrono's own source code, demos, and documentation, and
+and PyChrono. It answers questions using Chrono's own source code, demos, and documentation, and
 cites the files it used.
 
 For each question it retrieves the relevant parts of the current Chrono codebase, passes only those to an
@@ -12,8 +12,11 @@ version-mismatched answers a general chatbot can give.
 It runs locally and needs no account or API key to start. The answer step can use a local LLM or a cloud
 LLM, selectable per query. It can be used from a terminal, a code editor (via MCP), or a local web app.
 
-> Scope: Chrono / PyChrono 10.0 (the index covers Chrono's C++ sources, docs, and Python demos).
-> Older versions are not covered.
+> Scope: two prebuilt indexes ("channels") are published, and every answer states which one it used.
+> `main` (default) is a dated snapshot of Chrono's development branch, rebuilt monthly; it covers work
+> after the 10.0.0 release such as the AMD ROCm/HIP GPU backend. `10.0.0` is the 10.0.0 release, which
+> is what conda PyChrono users have installed. Each index covers Chrono's C++ sources, docs, and Python
+> demos for that checkout only; older versions are not covered.
 
 ## Quickstart (no API key needed)
 
@@ -21,9 +24,12 @@ Requires [conda](https://conda-forge.org/). From a clone of this repository:
 
 ```bash
 ./setup.sh                                        # Windows PowerShell: .\setup.ps1
-conda run -n chrono-rag chrono-rag get-index      # downloads the prebuilt search index
+conda run -n chrono-rag chrono-rag get-index      # prebuilt index of Chrono main (monthly snapshot)
 conda run -n chrono-rag chrono-rag search "how do I attach a lidar in pychrono"
 ```
+
+Using the conda PyChrono 10.0.0 release? Fetch the matching index instead:
+`chrono-rag get-index --channel 10.0.0`.
 
 That is a working code search over the Chrono codebase. The first search downloads a small embedding
 model once (needs network that one time). `conda activate chrono-rag` lets you drop the `conda run`
@@ -129,13 +135,31 @@ units. If nothing relevant is found, it reports that instead of answering. Pytho
 weighted higher for Python queries. The output is a small `index/` folder that stays on your machine. Two
 models are involved: the embedding model selects the relevant code, and the LLM writes the answer.
 
+### How the index stays current
+
+A GitHub Actions workflow (`.github/workflows/index-release.yml`) rebuilds the `main` index from
+Chrono's development branch on the first of every month, runs the retrieval eval as a gate, and
+publishes the result as a release named `index-main-YYYY-MM-DD` with assets
+`chrono-rag-index-main-<date>-<sha>.zip` (+ `.sha256`). `chrono-rag get-index` always takes the
+newest release of the requested channel. A Chrono release tag can be indexed the same way by running
+the workflow by hand ("Run workflow" in the Actions tab, with the tag as `chrono_ref`); its assets are
+named `chrono-rag-index-<tag>-<sha>.zip`. The scope label printed with every result comes from the
+index manifest, so a `main` snapshot always identifies itself with its date.
+
+GitHub pauses scheduled workflows on repositories with no activity for 60 days; if the monthly build
+stops appearing, re-enable it from the Actions tab.
+
 ### Build your own index
 
-Instead of downloading the prepared one, build it from a Chrono checkout:
+Instead of downloading a prepared one, build it from any Chrono checkout:
 
 ```bash
 CHRONO_RAG_REPO=/path/to/chrono conda run -n chrono-rag python -m chrono_rag.preprocess.build_index
 ```
+
+The checked-out ref decides the label: a release tag gives "PyChrono 10.0", anything else a dated
+development-snapshot label (override the detected ref with `CHRONO_RAG_REF`). Only files git tracks are
+indexed, so local build trees and scratch files in the checkout stay out of the index.
 
 ### Optional: forum search
 
@@ -184,8 +208,9 @@ not `:`.
 | `CHRONO_RAG_LLM_API_KEY` | API key (a dummy is fine for `local`) | from your environment |
 | `CHRONO_RAG_DIGEST` | architecture-overview file for `chrono_digest` | `docs/chrono-digest.md` |
 | `CHRONO_RAG_REPO` | your Chrono clone (index build only) | required for builds |
+| `CHRONO_RAG_REF` | git ref of that clone, for the scope label (index build only) | detected via git |
 | `CHRONO_RAG_EMBED_MODEL` | embedding model (index build only) | `BAAI/bge-small-en-v1.5` |
-| `CHRONO_RAG_VERSION` | version label override (index build only) | parsed from the checkout |
+| `CHRONO_RAG_VERSION` | Chrono version number override (index build only) | parsed from the checkout |
 | `CHRONO_RAG_ENV` | conda env name used by the setup scripts | `chrono-rag` |
 
 ### Developing

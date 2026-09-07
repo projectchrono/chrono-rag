@@ -8,6 +8,12 @@ Run:
   python -m chrono_rag.eval.run_eval            # uses the default index
   CHRONO_RAG_INDEX=... python -m chrono_rag.eval.run_eval
 Exit code is non-zero if metrics fall below the gates (for CI).
+
+Gold entries may carry `"channels": ["main"]` to apply only to indexes of
+those channels (manifest `channel`): content that exists on Chrono's main
+branch but not in the 10.0.0 release must not count as a miss (or a wrongful
+abstention) against the release index. Entries without `channels` apply to
+every index.
 """
 from __future__ import annotations
 
@@ -43,9 +49,19 @@ def first_hit_rank(results, relevant):
     return None
 
 
+def applies(item, channel) -> bool:
+    chans = item.get("channels")
+    if not chans:
+        return True
+    return channel is not None and channel in chans
+
+
 def main() -> int:
-    gold = load_gold()
     core = RetrievalCore()
+    channel = core.store.manifest.get("channel")
+    gold_all = load_gold()
+    gold = [g for g in gold_all if applies(g, channel)]
+    skipped = len(gold_all) - len(gold)
 
     positives = [g for g in gold if g["kind"] != "negative"]
     negatives = [g for g in gold if g["kind"] == "negative"]
@@ -82,7 +98,10 @@ def main() -> int:
     neg_abstain_rate = neg_abstained / len(negatives) if negatives else 1.0
 
     print(f"index: {len(core.store)} chunks, model={core.store.model_name}, "
-          f"chrono={core.store.manifest.get('chrono_version')}, floor={config.DENSE_FLOOR}")
+          f"chrono={core.store.manifest.get('chrono_version')}, channel={channel}, "
+          f"floor={config.DENSE_FLOOR}")
+    print(f"scope: {core.version_label}; gold entries used: {len(gold)}"
+          + (f" ({skipped} skipped: other channels)" if skipped else ""))
     print("-" * 78)
     print(f"{'query':46} {'conf':>5} {'rank':>4} {'abstain':>7}  top")
     for q, c, rank, ab, top in rows:

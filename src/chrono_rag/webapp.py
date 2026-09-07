@@ -24,8 +24,8 @@ log = logging.getLogger("chrono_rag.webapp")
 app = FastAPI(title="Chrono RAG")
 
 # Manifest keys safe to expose on /health (no local filesystem paths).
-_HEALTH_MANIFEST_KEYS = ("model", "dim", "n_chunks", "chrono_version",
-                         "version_label", "commit", "chunker_version")
+_HEALTH_MANIFEST_KEYS = ("model", "dim", "n_chunks", "chrono_version", "chrono_ref",
+                         "channel", "built_at", "version_label", "commit", "chunker_version")
 
 
 class SearchRequest(BaseModel):

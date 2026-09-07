@@ -36,8 +36,10 @@ and the core imports no server or LLM SDK.
    remove it.
 3. **Privacy of forum data.** Anything touching `build_forum_index.py` must keep the PII
    scrubbing intact; the scrubber has tests, keep them passing and extend them with new cases.
-4. **Honest scope.** The tool targets the PyChrono version stated in the README. Additions
-   that mix versions need a plan for not contaminating answers.
+4. **Honest scope.** Every index is built from one Chrono checkout and says so in its manifest
+   (`channel`, `chrono_ref`, `version_label`), and every answer prints that label. Additions that
+   mix versions inside one index need a plan for not contaminating answers; gold entries that
+   only hold on one channel carry a `channels` field.
 5. **Tests + eval.** `pytest` must pass; if you touch retrieval behavior, run
    `python -m chrono_rag.eval.run_eval` against a real index and report the numbers in the PR.
 

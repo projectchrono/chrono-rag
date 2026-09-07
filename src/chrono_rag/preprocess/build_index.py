@@ -10,7 +10,15 @@ Env:
   CHRONO_RAG_REPO         path to the Chrono checkout (required)
   CHRONO_RAG_INDEX        output index dir (default: <repo_root>/index)
   CHRONO_RAG_EMBED_MODEL  embedder (default: BAAI/bge-small-en-v1.5)
-  CHRONO_RAG_VERSION      Chrono version label (default: parsed, else 10.0)
+  CHRONO_RAG_VERSION      Chrono version number (default: parsed from CMakeLists)
+  CHRONO_RAG_REF          git ref that was checked out (default: detected via git;
+                          a release tag like "10.0.0", or a branch like "main")
+
+The ref decides the user-facing scope label and the release "channel": a tag
+yields "PyChrono 10.0" / channel "10.0.0"; a branch yields a dated
+"Chrono main snapshot ..." label / channel "main", because Chrono's CMake
+version stays at the last release between releases and would otherwise make a
+development snapshot look like the release users have installed.
 """
 from __future__ import annotations
 
@@ -20,6 +28,7 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -62,6 +71,41 @@ def _repo_commit(repo: str) -> str:
         return "unknown"
 
 
+def _git(repo: str, *args: str) -> str:
+    try:
+        out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, check=True)
+        return out.stdout.strip()
+    except Exception:
+        return ""
+
+
+def _chrono_ref(repo: str) -> str:
+    """The git ref that is checked out: CHRONO_RAG_REF, else an exact tag, else
+    the branch name, else the short commit."""
+    env = os.environ.get("CHRONO_RAG_REF")
+    if env:
+        return env.strip()
+    tag = _git(repo, "describe", "--tags", "--exact-match")
+    if tag:
+        return tag
+    branch = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch and branch != "HEAD":
+        return branch
+    return _git(repo, "rev-parse", "--short", "HEAD") or "unknown"
+
+
+_TAG_RE = re.compile(r"^v?\d+\.\d+(\.\d+)?$")
+
+
+def _is_release_ref(ref: str) -> bool:
+    return bool(_TAG_RE.match(ref))
+
+
+def _channel(ref: str) -> str:
+    """Release channel name used in asset names and `get-index --channel`."""
+    return ref.lstrip("v") if _is_release_ref(ref) else re.sub(r"[^A-Za-z0-9._-]+", "-", ref)
+
+
 def _chrono_version(repo: str) -> str:
     env = os.environ.get("CHRONO_RAG_VERSION")
     if env:
@@ -78,10 +122,17 @@ def _chrono_version(repo: str) -> str:
     return "10.0"
 
 
-def _version_label(version: str) -> str:
-    """'10.0.1' -> 'PyChrono 10.0' (the user-facing scope label)."""
+def _version_label(version: str, ref: str, built_at: str) -> str:
+    """The user-facing scope label printed with every answer.
+
+    Release tag: '10.0.1' -> 'PyChrono 10.0'. Anything else is a development
+    snapshot and says so, with the date, so a user on the conda release is not
+    told about APIs that only exist on main (and vice versa).
+    """
     major_minor = ".".join(version.split(".")[:2])
-    return f"PyChrono {major_minor}"
+    if _is_release_ref(ref):
+        return f"PyChrono {major_minor}"
+    return f"Chrono {ref} snapshot {built_at} (post-{major_minor} development)"
 
 
 def _want(path: str) -> bool:
@@ -96,7 +147,29 @@ def _want(path: str) -> bool:
     return False
 
 
+def _tracked_files(repo: str):
+    """Paths git tracks in `repo` (None when it is not a git checkout).
+
+    Indexing only tracked files keeps a developer's local build trees, scratch
+    notes and generated wrappers (build_*/, *_proof/, ...) out of the index;
+    a CI clone has none of those, so this makes local and CI builds agree.
+    """
+    out = _git(repo, "ls-files", "-z")
+    if not out:
+        return None
+    return [os.path.join(repo, p) for p in out.split("\0") if p]
+
+
 def _iter_files(repo: str):
+    tracked = _tracked_files(repo)
+    if tracked is not None:
+        for full in tracked:
+            rel = os.path.relpath(full, repo).replace("\\", "/")
+            if any(part in _SKIP_DIRS for part in rel.split("/")[:-1]):
+                continue
+            if _want(full):
+                yield full
+        return
     for dirpath, dirnames, filenames in os.walk(repo):
         rel = os.path.relpath(dirpath, repo).replace("\\", "/")
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
@@ -154,6 +227,8 @@ def main() -> None:
             fh.write(json.dumps(m, ensure_ascii=False) + "\n")
 
     version = _chrono_version(repo)
+    ref = _chrono_ref(repo)
+    built_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     manifest = {
         "model": model_name,
         "dim": int(emb.shape[1]),
@@ -163,7 +238,10 @@ def main() -> None:
         "index_format": 2,
         "commit": _repo_commit(repo),
         "chrono_version": version,
-        "version_label": _version_label(version),
+        "chrono_ref": ref,
+        "channel": _channel(ref),
+        "built_at": built_at,
+        "version_label": _version_label(version, ref, built_at),
         "built_by": "chrono-rag",
     }
     with open(os.path.join(out, "manifest.json"), "w", encoding="utf-8") as fh:

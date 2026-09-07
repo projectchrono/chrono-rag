@@ -9,4 +9,4 @@ Layout:
   eval/        retrieval-quality harness + gold set
 """
 
-__version__ = "0.9.0"
+__version__ = "1.0.0"

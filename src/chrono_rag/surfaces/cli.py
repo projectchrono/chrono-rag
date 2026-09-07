@@ -99,27 +99,36 @@ def _http_get(url: str):
     return urllib.request.urlopen(req, timeout=60)
 
 
-def _find_release_asset(forum: bool) -> tuple[str, str | None]:
-    """Return (zip_url, sha256_url_or_None) for the newest matching release asset."""
-    url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases?per_page=30"
+# Release-asset naming is the one contract between the publishing workflow
+# (.github/workflows/index-release.yml) and this downloader:
+#   chrono-rag-index-<channel>-<suffix>.zip (+ .sha256)
+# where <channel> is "main" (dated development snapshot), a Chrono release tag
+# such as "10.0.0", or "forum" (the optional forum+examples index). Newest
+# release wins within a channel.
+DEFAULT_CHANNEL = "main"
+
+
+def _find_release_asset(channel: str) -> tuple[str, str | None]:
+    """Return (zip_url, sha256_url_or_None) for the newest asset of `channel`."""
+    url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases?per_page=50"
     with _http_get(url) as resp:
         releases = json.load(resp)
+    prefix = f"chrono-rag-index-{channel}-"
     for rel in releases:  # newest first
         zip_url, sha_url = None, None
         for a in rel.get("assets", []):
             name = a.get("name", "")
-            is_forum = "index-forum" in name
-            if is_forum != forum:
+            if not name.startswith(prefix):
                 continue
-            if name.startswith("chrono-rag-index") and name.endswith(".zip"):
+            if name.endswith(".zip"):
                 zip_url = a["browser_download_url"]
-            elif name.startswith("chrono-rag-index") and name.endswith(".sha256"):
+            elif name.endswith(".sha256"):
                 sha_url = a["browser_download_url"]
         if zip_url:
             return zip_url, sha_url
-    kind = "forum" if forum else "main"
     raise FileNotFoundError(
-        f"no {kind}-index asset found on https://github.com/{config.GITHUB_REPO}/releases"
+        f"no '{channel}' index asset found on https://github.com/{config.GITHUB_REPO}/releases "
+        f"(channels: main, a Chrono release tag such as 10.0.0, or forum)"
     )
 
 
@@ -171,8 +180,9 @@ def _extract_index(zip_path: str, dest: str) -> None:
                 shutil.copyfileobj(src, out)
 
 
-def _cmd_get_index(forum: bool, force: bool) -> int:
+def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL) -> int:
     if forum:
+        channel = "forum"
         dest = os.path.join(os.path.dirname(config.index_dir()), "index-forum")
     else:
         dest = config.index_dir()
@@ -182,7 +192,7 @@ def _cmd_get_index(forum: bool, force: bool) -> int:
         return 1
 
     try:
-        zip_url, sha_url = _find_release_asset(forum)
+        zip_url, sha_url = _find_release_asset(channel)
         with tempfile.TemporaryDirectory() as tmp:
             zp = os.path.join(tmp, "index.zip")
             _download(zip_url, zp)
@@ -195,6 +205,12 @@ def _cmd_get_index(forum: bool, force: bool) -> int:
         return 1
 
     print(f"[get-index] index ready at {dest}")
+    man_path = os.path.join(dest, "manifest.json")
+    if os.path.exists(man_path):
+        with open(man_path, encoding="utf-8") as fh:
+            man = json.load(fh)
+        print(f"[get-index] scope: {man.get('version_label', '?')}  "
+              f"(commit {str(man.get('commit', '?'))[:9]}, built {man.get('built_at', '?')})")
     if forum:
         sep = os.pathsep
         print(f"[get-index] enable it with:  CHRONO_RAG_EXTRA_INDEX={dest}")
@@ -251,6 +267,9 @@ def _cmd_doctor() -> int:
         print(f"[ok]   index: {idx}")
         print(f"       {man.get('n_chunks', '?')} chunks, model {man.get('model', '?')}, "
               f"chrono {man.get('chrono_version', '?')}")
+        print(f"       scope: {man.get('version_label', '?')}; channel "
+              f"{man.get('channel', '?')}, ref {man.get('chrono_ref', '?')}, "
+              f"commit {str(man.get('commit', '?'))[:9]}, built {man.get('built_at', '?')}")
     else:
         print(f"[MISS] index: nothing at {idx}")
         print("       fix: run `chrono-rag get-index` (or set CHRONO_RAG_INDEX)")
@@ -310,7 +329,8 @@ def _cmd_doctor() -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="chrono-rag",
-        description="Local Chrono/PyChrono retrieval assistant (targets PyChrono 10.0).",
+        description="Local Chrono/PyChrono retrieval assistant over an index of Chrono's "
+                    "own code and docs (the loaded index's scope is printed with every result).",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -330,7 +350,11 @@ def main(argv: list[str] | None = None) -> int:
         help="LLM backend (default: from CHRONO_RAG_LLM_* env, else auto)",
     )
 
-    pg = sub.add_parser("get-index", help="download the prebuilt index from GitHub Releases")
+    pg = sub.add_parser("get-index", help="download a prebuilt index from GitHub Releases")
+    pg.add_argument("--channel", default=DEFAULT_CHANNEL,
+                    help="which index: 'main' (dated snapshot of Chrono's development branch, "
+                         "default) or a Chrono release tag such as '10.0.0' (what conda "
+                         "PyChrono users have)")
     pg.add_argument("--forum", action="store_true",
                     help="download the optional forum+examples index instead")
     pg.add_argument("--force", action="store_true", help="replace an existing index")
@@ -343,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "ask":
         return _cmd_ask(" ".join(args.query), args.k, args.model, args.provider)
     if args.cmd == "get-index":
-        return _cmd_get_index(args.forum, args.force)
+        return _cmd_get_index(args.forum, args.force, args.channel)
     if args.cmd == "doctor":
         return _cmd_doctor()
     return 2
