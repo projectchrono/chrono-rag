@@ -15,11 +15,18 @@ was cached.)
 """
 from __future__ import annotations
 
-from mcp.server.mcpserver import MCPServer
+try:
+    # mcp >= 2.0 renamed FastMCP to MCPServer and removed mcp.server.fastmcp.
+    from mcp.server.mcpserver import MCPServer as _Server
+except ImportError:
+    # mcp 1.x (still maintained; many installs, incl. conda-forge pins, are on it).
+    from mcp.server.fastmcp import FastMCP as _Server
 
 from chrono_rag.surfaces.format import render_digest, render_results
 
-mcp = MCPServer("chrono-rag")
+# The surface we use (@tool() on sync functions, run() over stdio) is identical
+# on both majors, so one server object serves either SDK.
+mcp = _Server("chrono-rag")
 
 
 @mcp.tool()

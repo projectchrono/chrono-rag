@@ -224,3 +224,18 @@ def test_llm_env_provider_and_default_model(clean_llm_env):
     clean_llm_env.setenv("CHRONO_RAG_LLM_PROVIDER", "openai")
     assert LLM().provider == "openai"
     assert LLM().model == LLM.OPENAI_MODEL
+
+
+# --- MCP surface --------------------------------------------------------------
+
+def test_mcp_server_exposes_tools():
+    """The server object must build on whichever mcp major is installed (1.x
+    FastMCP or 2.x MCPServer) and register both tools under their stable names."""
+    pytest.importorskip("mcp")
+    import asyncio
+
+    from chrono_rag.surfaces import mcp_server
+
+    tools = asyncio.run(mcp_server.mcp.list_tools())
+    names = {t.name for t in tools}
+    assert {"search_chrono", "chrono_digest"} <= names

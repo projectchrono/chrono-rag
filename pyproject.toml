@@ -45,9 +45,10 @@ web = [
     "pydantic>=2.0",
     "python-dotenv>=1.0",
 ]
-# MCP server surface (editors)
+# MCP server surface (editors). Both SDK majors work: mcp_server.py imports
+# MCPServer (2.x) and falls back to FastMCP (1.x).
 mcp = [
-    "mcp>=2.1",
+    "mcp>=1.2",
 ]
 dev = [
     "pytest>=8.0",

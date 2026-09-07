@@ -15,5 +15,12 @@ jobs:
           python-version: "3.12"
       - name: Install (editable, all extras)
         run: pip install -e ".[llm,web,mcp,dev]"
-      - name: Unit tests
+      - name: Unit tests (latest mcp, 2.x)
         run: pytest -q
+      # The MCP server must import on both SDK majors (mcp_server.py has an
+      # import shim). The default install above resolves to 2.x; this re-checks 1.x.
+      - name: MCP server imports on mcp 1.x
+        run: |
+          pip install "mcp<2"
+          python -c "import chrono_rag.surfaces.mcp_server as s; print(type(s.mcp).__name__)"
+          pytest -q -k mcp_server
