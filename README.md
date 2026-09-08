@@ -119,7 +119,8 @@ Two prebuilt indexes are published as GitHub Releases and every answer says whic
 | `main` (default) | Chrono's development branch, dated snapshot, rebuilt monthly | anyone building Chrono from source; covers post-10.0 work such as the AMD ROCm/HIP GPU backend |
 | `10.0.0` | the 10.0.0 release tag | users of the conda PyChrono 10.0.0 package |
 
-`.github/workflows/index-release.yml` rebuilds `main` on the first of every month, gates on the
+`.github/workflows/index-release.yml` rebuilds `main` on the first of every month (the embedding is
+split over 8 parallel jobs and merged, since one hosted runner is too slow), gates on the
 retrieval eval, and publishes `index-main-YYYY-MM-DD` with assets `chrono-rag-index-main-<date>-<sha>.zip`
 (+ `.sha256`); `chrono-rag get-index` takes the newest release of the requested channel. Any Chrono
 tag can be indexed by running that workflow by hand with the tag as `chrono_ref` ("Run workflow" in

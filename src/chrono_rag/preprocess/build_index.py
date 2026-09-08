@@ -13,6 +13,9 @@ Env:
   CHRONO_RAG_VERSION      Chrono version number (default: parsed from CMakeLists)
   CHRONO_RAG_REF          git ref that was checked out (default: detected via git;
                           a release tag like "10.0.0", or a branch like "main")
+  CHRONO_RAG_SHARD        "i/N": chunk everything but embed only slice i of N
+                          (0-based), for parallel CI builds; merge the N output
+                          dirs with `python -m chrono_rag.preprocess.merge_shards`.
 
 The ref decides the user-facing scope label and the release "channel": a tag
 yields "PyChrono 10.0" / channel "10.0.0"; a branch yields a dated
@@ -44,6 +47,28 @@ _EXTS = {".h", ".hpp", ".hxx", ".cpp", ".cc", ".cxx", ".c", ".cu", ".cuh",
 _EXTRA_NAMES = {"CMakeLists.txt", "README", "AGENTS.md", "CHANGELOG.md", "PLATFORMS.md"}
 _SKIP_DIRS = {".git", "chrono_thirdparty", "data", "images"}
 _SKIP_SUBSTR = ("_generated.h", ".yy.cpp", ".tab.c")
+
+
+def _shard_spec() -> "tuple[int, int] | None":
+    """Parse CHRONO_RAG_SHARD="i/N" (0 <= i < N), or None for a full build."""
+    v = os.environ.get("CHRONO_RAG_SHARD", "").strip()
+    if not v:
+        return None
+    try:
+        i_s, n_s = v.split("/")
+        i, n = int(i_s), int(n_s)
+    except ValueError:
+        raise SystemExit(f"error: CHRONO_RAG_SHARD must look like 'i/N', got {v!r}")
+    if not (0 <= i < n):
+        raise SystemExit(f"error: CHRONO_RAG_SHARD index out of range: {v!r}")
+    return i, n
+
+
+def shard_bounds(total: int, i: int, n: int) -> "tuple[int, int]":
+    """Contiguous slice [lo, hi) of shard i of n over `total` items; the N
+    slices partition range(total) exactly, so merging in shard order restores
+    the full-build ordering."""
+    return (total * i) // n, (total * (i + 1)) // n
 
 
 def _repo_or_die() -> str:
@@ -182,6 +207,12 @@ def _iter_files(repo: str):
 
 
 def main() -> None:
+    # CI captures stdout through a pipe; without line buffering the progress
+    # lines sit in the buffer and a slow build looks hung for hours.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
     repo = _repo_or_die()
     out = os.environ.get("CHRONO_RAG_INDEX") or config.index_dir()
     model_name = os.environ.get("CHRONO_RAG_EMBED_MODEL", DEFAULT_MODEL)
@@ -209,6 +240,12 @@ def main() -> None:
         rel = os.path.relpath(fpath, repo).replace("\\", "/")
         meta.extend(chunk_file(content, rel))
 
+    total_chunks = len(meta)
+    shard = _shard_spec()
+    if shard:
+        lo, hi = shard_bounds(total_chunks, *shard)
+        meta = meta[lo:hi]
+        print(f"[build] shard {shard[0]}/{shard[1]}: embedding chunks {lo}:{hi} of {total_chunks}")
     print(f"[build] {len(meta)} chunks; embedding with {model_name} ...")
     embedder = get_embedder(model_name)
     texts = [m["text"] for m in meta]
@@ -244,6 +281,8 @@ def main() -> None:
         "version_label": _version_label(version, ref, built_at),
         "built_by": "chrono-rag",
     }
+    if shard:
+        manifest["shard"] = {"index": shard[0], "of": shard[1], "total_chunks": total_chunks}
     with open(os.path.join(out, "manifest.json"), "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)
 

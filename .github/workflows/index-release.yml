@@ -7,6 +7,12 @@ name: Build & publish index
 #   <tag>   - a Chrono release such as 10.0.0 (what conda PyChrono users run)
 # Asset naming is the contract with cli.py:_find_release_asset:
 #   chrono-rag-index-<channel>-<suffix>.zip (+ .sha256)
+#
+# Embedding ~37k chunks takes a 16-core desktop 45 min and did not finish in
+# 5 h on one GitHub-hosted runner, so the build is sharded: `prepare` pins the
+# Chrono commit and names, N `build` jobs each embed one slice
+# (CHRONO_RAG_SHARD=i/N over an identical chunking), and `publish` merges the
+# slices, runs the eval gate, and cuts the release.
 on:
   schedule:
     - cron: "0 6 1 * *"          # monthly, 1st at 06:00 UTC: refresh the main snapshot
@@ -23,46 +29,49 @@ concurrency:
   group: index-release
   cancel-in-progress: false
 
+env:
+  CHRONO_REF: ${{ github.event.inputs.chrono_ref || 'main' }}
+  SHARDS: 8
+
 jobs:
-  build-index:
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 300          # the July runs hit a 90 min ceiling; embedding ~37k chunks on a 2-4 vCPU runner is slow
-    env:
-      CHRONO_REF: ${{ github.event.inputs.chrono_ref || 'main' }}
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.names.outputs.sha }}
+      short_sha: ${{ steps.names.outputs.short_sha }}
+      date: ${{ steps.names.outputs.date }}
+      channel: ${{ steps.names.outputs.channel }}
+      tag: ${{ steps.names.outputs.tag }}
+      asset: ${{ steps.names.outputs.asset }}
+      skip: ${{ steps.skip.outputs.skip }}
+      shards: ${{ steps.names.outputs.shards }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install (editable)
-        run: pip install -e ".[dev]"
-
-      - name: Clone Chrono (${{ env.CHRONO_REF }})
-        run: |
-          git clone --depth 1 --branch "$CHRONO_REF" \
-            https://github.com/projectchrono/chrono.git chrono-src
-
-      # Channel + names. A release tag (10.0.0) is its own channel; anything else
-      # is the "main" channel and carries the snapshot date in tag and asset.
-      - name: Derive channel and asset names
+      # Pin the exact Chrono commit once so every shard chunks the same tree.
+      - name: Resolve Chrono commit and names
         id: names
         run: |
-          SHORT_SHA=$(git -C chrono-src rev-parse --short=7 HEAD)
+          SHA=$(git ls-remote https://github.com/projectchrono/chrono.git "refs/heads/$CHRONO_REF" "refs/tags/$CHRONO_REF" \
+                | awk 'NR==1 {print $1}')
+          if [ -z "$SHA" ]; then echo "ref '$CHRONO_REF' not found in projectchrono/chrono" >&2; exit 1; fi
+          # an annotated tag resolves to the tag object; peel it
+          PEELED=$(git ls-remote https://github.com/projectchrono/chrono.git "refs/tags/$CHRONO_REF^{}" | awk '{print $1}')
+          [ -n "$PEELED" ] && SHA="$PEELED"
+          SHORT_SHA=${SHA:0:7}
           DATE=$(date -u +%Y-%m-%d)
           if [[ "$CHRONO_REF" =~ ^v?[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            CHANNEL="${CHRONO_REF#v}"
-            TAG="index-${CHANNEL}-${SHORT_SHA}"
+            CHANNEL="${CHRONO_REF#v}"; TAG="index-${CHANNEL}-${SHORT_SHA}"
             ASSET="chrono-rag-index-${CHANNEL}-${SHORT_SHA}.zip"
           else
-            CHANNEL="main"
-            TAG="index-main-${DATE}"
+            CHANNEL="main"; TAG="index-main-${DATE}"
             ASSET="chrono-rag-index-main-${DATE}-${SHORT_SHA}.zip"
           fi
+          SHARDS_JSON=$(python3 -c "import json,os; print(json.dumps(list(range(int(os.environ['SHARDS'])))))")
           {
-            echo "short_sha=$SHORT_SHA"; echo "date=$DATE"; echo "channel=$CHANNEL"
-            echo "tag=$TAG"; echo "asset=$ASSET"
+            echo "sha=$SHA"; echo "short_sha=$SHORT_SHA"; echo "date=$DATE"; echo "channel=$CHANNEL"
+            echo "tag=$TAG"; echo "asset=$ASSET"; echo "shards=$SHARDS_JSON"
           } >> "$GITHUB_OUTPUT"
-          echo "channel=$CHANNEL tag=$TAG asset=$ASSET"
+          echo "ref=$CHRONO_REF sha=$SHA channel=$CHANNEL tag=$TAG asset=$ASSET shards=$SHARDS_JSON"
 
       # Skip a scheduled run when the newest release of this channel already
       # indexed this exact Chrono commit (nothing new to publish).
@@ -71,65 +80,100 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          CH="${{ steps.names.outputs.channel }}"
-          SHA="${{ steps.names.outputs.short_sha }}"
+          CH="${{ steps.names.outputs.channel }}"; SHA7="${{ steps.names.outputs.short_sha }}"
           if gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,assets \
                --jq ".[] | select(.tagName | startswith(\"index-${CH}-\")) | .assets[].name" 2>/dev/null \
-             | grep -q -- "-${SHA}\.zip$"; then
-            echo "already published for ${CH} @ ${SHA}; skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+             | grep -q -- "-${SHA7}\.zip$"; then
+            echo "already published for ${CH} @ ${SHA7}; skipping"; echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build index
-        if: steps.skip.outputs.skip != 'true'
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: ${{ fromJson(needs.prepare.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (editable)
+        run: pip install -e ".[dev]"
+      - name: Fetch Chrono @ ${{ needs.prepare.outputs.short_sha }}
+        run: |
+          git init -q chrono-src
+          git -C chrono-src remote add origin https://github.com/projectchrono/chrono.git
+          git -C chrono-src fetch -q --depth 1 origin "${{ needs.prepare.outputs.sha }}"
+          git -C chrono-src checkout -q FETCH_HEAD
+      - name: Build shard ${{ matrix.shard }} of ${{ env.SHARDS }}
         env:
           CHRONO_RAG_REPO: chrono-src
-          CHRONO_RAG_INDEX: index
+          CHRONO_RAG_INDEX: shard
           CHRONO_RAG_REF: ${{ env.CHRONO_REF }}
-        run: python -m chrono_rag.preprocess.build_index
+          CHRONO_RAG_SHARD: ${{ matrix.shard }}/${{ env.SHARDS }}
+        run: python -u -m chrono_rag.preprocess.build_index
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: shard
+          retention-days: 3
+          if-no-files-found: error
 
+  publish:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (editable)
+        run: pip install -e ".[dev]"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+      - name: Merge shards
+        run: python -u -m chrono_rag.preprocess.merge_shards index shards/shard-*
       - name: Retrieval eval gate
-        if: steps.skip.outputs.skip != 'true'
         env:
           CHRONO_RAG_INDEX: index
-        run: python -m chrono_rag.eval.run_eval | tee eval.txt   # non-zero exit fails the build
-
-      - name: Package index (zip + sha256)
-        if: steps.skip.outputs.skip != 'true'
+        run: python -u -m chrono_rag.eval.run_eval | tee eval.txt   # non-zero exit fails the build
+      - name: Package index (zip + sha256) and release notes
+        env:
+          ASSET: ${{ needs.prepare.outputs.asset }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          DATE: ${{ needs.prepare.outputs.date }}
         run: |
-          ASSET="${{ steps.names.outputs.asset }}"
-          python -c "import shutil; shutil.make_archive('${ASSET%.zip}', 'zip', '.', 'index')"
+          python -c "import shutil, os; a=os.environ['ASSET']; shutil.make_archive(a[:-4], 'zip', '.', 'index')"
           sha256sum "$ASSET" > "$ASSET.sha256"
           ls -la "$ASSET" "$ASSET.sha256"
           {
-            echo "Prebuilt chrono-rag search index, channel **${{ steps.names.outputs.channel }}**."
+            echo "Prebuilt chrono-rag search index, channel **${CHANNEL}**."
             echo
-            echo "- Chrono ref: \`$CHRONO_REF\` @ \`$(git -C chrono-src rev-parse HEAD)\`"
-            echo "- Built: ${{ steps.names.outputs.date }} (UTC), chrono-rag @ \`${GITHUB_SHA::9}\`"
+            echo "- Chrono ref: \`$CHRONO_REF\` @ \`$SHA\`"
+            echo "- Built: ${DATE} (UTC), chrono-rag @ \`${GITHUB_SHA::9}\`"
             echo "- Manifest: \`$(python -c "import json; m=json.load(open('index/manifest.json')); print(m['version_label'], '|', m['n_chunks'], 'chunks from', m['n_files'], 'files |', m['model'])")\`"
             echo
-            echo "Install with \`chrono-rag get-index --channel ${{ steps.names.outputs.channel }}\`."
+            echo "Install with \`chrono-rag get-index --channel ${CHANNEL}\`."
             echo
             echo "<details><summary>Retrieval eval</summary>"; echo; echo '```'; cat eval.txt; echo '```'; echo "</details>"
           } > release_notes.md
-
-      - uses: actions/upload-artifact@v4
-        if: steps.skip.outputs.skip != 'true'
-        with:
-          name: chrono-rag-index-${{ steps.names.outputs.channel }}
-          path: |
-            ${{ steps.names.outputs.asset }}
-            ${{ steps.names.outputs.asset }}.sha256
-
       - name: Publish release
-        if: steps.skip.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.names.outputs.tag }}
-          name: Index ${{ steps.names.outputs.channel }} (${{ steps.names.outputs.date }})
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Index ${{ needs.prepare.outputs.channel }} (${{ needs.prepare.outputs.date }})
           body_path: release_notes.md
           files: |
-            ${{ steps.names.outputs.asset }}
-            ${{ steps.names.outputs.asset }}.sha256
+            ${{ needs.prepare.outputs.asset }}
+            ${{ needs.prepare.outputs.asset }}.sha256

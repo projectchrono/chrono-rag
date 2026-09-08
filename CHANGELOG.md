@@ -14,7 +14,9 @@ First release from the official home, `projectchrono/chrono-rag` (moved from `uw
   `built_at`, and the scope label printed with every answer now names a snapshot by date.
 - Monthly index refresh: the publish workflow runs on a schedule, gates on the retrieval eval,
   skips when Chrono's commit is already published, and creates the release itself
-  (`index-main-YYYY-MM-DD`). Release-asset names are the contract with `get-index`.
+  (`index-main-YYYY-MM-DD`). Release-asset names are the contract with `get-index`. The embedding
+  is sharded across 8 parallel jobs (`CHRONO_RAG_SHARD=i/N`, merged by `merge_shards`), because one
+  GitHub-hosted runner did not finish the corpus in 5 hours.
 - Index builder: indexes only git-tracked files (a local build tree in the checkout used to leak in).
 - Eval: gold entries can be channel-specific; six entries added for post-10.0 content.
 - Digest (`chrono_digest`): refreshed for current main, with main-only items marked.

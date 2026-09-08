@@ -226,6 +226,58 @@ def test_llm_env_provider_and_default_model(clean_llm_env):
     assert LLM().model == LLM.OPENAI_MODEL
 
 
+# --- sharded builds -----------------------------------------------------------
+
+def test_shard_bounds_partition_exactly():
+    from chrono_rag.preprocess.build_index import shard_bounds
+
+    for total in (0, 1, 7, 100, 37011):
+        for n in (1, 2, 3, 8):
+            slices = [shard_bounds(total, i, n) for i in range(n)]
+            assert slices[0][0] == 0 and slices[-1][1] == total
+            assert all(a[1] == b[0] for a, b in zip(slices, slices[1:]))
+
+
+def test_merge_shards_restores_full_index(tmp_path):
+    """Two shard dirs merge into one index equal to what a full build writes."""
+    from chrono_rag.preprocess.merge_shards import merge
+
+    full_emb = np.arange(10 * 3, dtype=np.float32).reshape(10, 3)
+    full_meta = [{"path": f"f{i}.py", "line": i, "text": f"t{i}"} for i in range(10)]
+    base = {"model": "m", "dim": 3, "commit": "abc", "chrono_version": "10.0",
+            "version_label": "PyChrono 10.0", "chunker_version": "v", "index_format": 2,
+            "n_files": 4, "built_by": "chrono-rag"}
+    dirs = []
+    for i, (lo, hi) in enumerate([(0, 5), (5, 10)]):
+        d = tmp_path / f"shard{i}"
+        d.mkdir()
+        np.save(d / "embeddings.npy", full_emb[lo:hi])
+        (d / "meta.jsonl").write_text("".join(json.dumps(m) + "\n" for m in full_meta[lo:hi]))
+        man = dict(base, n_chunks=hi - lo, shard={"index": i, "of": 2, "total_chunks": 10})
+        (d / "manifest.json").write_text(json.dumps(man))
+        dirs.append(str(d))
+    out = tmp_path / "merged"
+    manifest = merge(str(out), list(reversed(dirs)))   # order given must not matter
+    assert manifest["n_chunks"] == 10 and "shard" not in manifest
+    assert np.array_equal(np.load(out / "embeddings.npy"), full_emb)
+    got = [json.loads(l) for l in (out / "meta.jsonl").read_text().splitlines()]
+    assert got == full_meta
+
+
+def test_merge_shards_rejects_incomplete_set(tmp_path):
+    from chrono_rag.preprocess.merge_shards import merge
+
+    d = tmp_path / "s0"
+    d.mkdir()
+    np.save(d / "embeddings.npy", np.zeros((2, 3), dtype=np.float32))
+    (d / "meta.jsonl").write_text('{"a":1}\n{"a":2}\n')
+    (d / "manifest.json").write_text(json.dumps({"model": "m", "dim": 3, "commit": "c",
+                                                 "n_chunks": 2,
+                                                 "shard": {"index": 0, "of": 2, "total_chunks": 4}}))
+    with pytest.raises(ValueError):
+        merge(str(tmp_path / "out"), [str(d)])
+
+
 # --- MCP surface --------------------------------------------------------------
 
 def test_mcp_config_is_pasteable_json(capsys):
