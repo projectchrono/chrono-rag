@@ -8,6 +8,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import zipfile
 
 import numpy as np
 import pytest
@@ -231,3 +232,43 @@ def test_leftover_backup_is_a_warning_not_a_failure(monkeypatch, tmp_path, capsy
     assert cli.main(['get-index', '--channel', '10.0.0', '--force']) == 0
     assert json.loads((dest / 'manifest.json').read_text())['channel'] == '10.0.0'
     assert 'could not delete the previous index' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('evil', ['index/../../escape.txt', '../escape.txt', 'ABSOLUTE'])
+def test_archive_member_outside_the_index_is_refused(monkeypatch, tmp_path, evil):
+    dest = tmp_path / 'clone' / 'index'
+    write_index(dest, 'main')
+    incoming = tmp_path / 'incoming'
+    write_index(incoming / 'index', '10.0.0')
+    escape = tmp_path / 'escape.txt'
+    archive = tmp_path / 'download.zip'
+    with zipfile.ZipFile(archive, 'w') as z:
+        for f in (incoming / 'index').iterdir():
+            z.write(f, f'index/{f.name}')
+        z.writestr(escape.as_posix() if evil == 'ABSOLUTE' else evil, 'escaped')
+    monkeypatch.setattr(cli.config, 'index_dir', lambda: str(dest))
+    monkeypatch.setattr(cli, '_find_release_asset', lambda _: ('zip-url', 'sha-url'))
+    monkeypatch.setattr(cli, '_download', lambda url, path: shutil.copyfile(archive, path))
+    monkeypatch.setattr(cli, '_verify_sha256', lambda *args: None)
+    assert cli.main(['get-index', '--channel', '10.0.0', '--force']) == 1
+    assert not escape.exists() and not (tmp_path / 'clone' / 'escape.txt').exists()
+    assert json.loads((dest / 'manifest.json').read_text())['channel'] == 'main'
+    assert not list(dest.parent.glob('.chrono-rag-*'))
+
+
+def test_failed_restore_names_the_surviving_previous_index(monkeypatch, tmp_path, capsys):
+    dest = tmp_path / 'index'
+    write_index(dest, 'main')
+    fake_release(monkeypatch, tmp_path, dest)
+    original_replace = cli.os.replace
+    def replace(src, dst):
+        if Path(dst) == dest:  # both the promotion and the restore fail
+            raise OSError('rename blocked')
+        return original_replace(src, dst)
+    monkeypatch.setattr(cli.os, 'replace', replace)
+    assert cli.main(['get-index', '--channel', '10.0.0', '--force']) == 1
+    backups = list(tmp_path.glob('.chrono-rag-previous-*'))
+    assert len(backups) == 1
+    assert json.loads((backups[0] / 'manifest.json').read_text())['channel'] == 'main'
+    err = capsys.readouterr().err
+    assert 'restoring the previous one failed too' in err and str(backups[0]) in err

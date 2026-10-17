@@ -176,16 +176,26 @@ def _extract_index(zip_path: str, dest: str) -> None:
     """Extract the index zip so `dest` ends up holding embeddings.npy etc.
 
     Handles both layouts: files at the zip root, or under one top-level folder
-    (the published assets use `index/...` / `index-forum/...`).
+    (the published assets use `index/...` / `index-forum/...`). Every member is
+    checked before anything is written: one that would land outside `dest`
+    (`..`, an absolute path, a drive letter) fails the whole extraction.
     """
     with zipfile.ZipFile(zip_path) as z:
         names = [n for n in z.namelist() if not n.endswith("/")]
         tops = {n.split("/", 1)[0] for n in names if "/" in n}
         strip = tops.pop() + "/" if len(tops) == 1 and all("/" in n for n in names) else ""
-        os.makedirs(dest, exist_ok=True)
+        root = os.path.abspath(dest)
+        targets = []
         for n in names:
-            target = os.path.join(dest, n[len(strip):]) if strip else os.path.join(dest, n)
-            os.makedirs(os.path.dirname(target) or dest, exist_ok=True)
+            rel = n[len(strip):] if strip else n
+            target = os.path.abspath(os.path.join(root, rel))
+            if (os.path.isabs(rel) or os.path.splitdrive(rel)[0]
+                    or os.path.commonpath([root, target]) != root):
+                raise ValueError(f"refusing unsafe path in the index archive: {n!r}")
+            targets.append((n, target))
+        os.makedirs(dest, exist_ok=True)
+        for n, target in targets:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
             with z.open(n) as src, open(target, "wb") as out:
                 shutil.copyfileobj(src, out)
 
@@ -249,9 +259,16 @@ def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL,
                 os.replace(dest, backup)
             try:
                 os.replace(staged, dest)
-            except OSError:
+            except OSError as install_error:
                 if backup:
-                    os.replace(backup, dest)
+                    try:
+                        os.replace(backup, dest)
+                    except OSError as restore_error:
+                        # The old index now survives only at `backup`, which no
+                        # cleanup path deletes; say where it is.
+                        raise OSError(f"installing the new index failed ({install_error}) and restoring "
+                                      f"the previous one failed too ({restore_error}); the previous "
+                                      f"index is intact at {backup}") from restore_error
                 raise
         finally:
             shutil.rmtree(staged, ignore_errors=True)  # already gone after a successful swap
