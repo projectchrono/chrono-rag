@@ -46,3 +46,9 @@ test('does not show error when loading', () => {
   render(<AnswerCard result={null} loading={true} error="Something went wrong." />)
   expect(screen.queryByText('Something went wrong.')).not.toBeInTheDocument()
 })
+
+test('shows the actual index scope beside the answer', () => {
+  const version = 'Chrono main snapshot 2026-10-17 (post-10.0 development)'
+  render(<AnswerCard result={{ answer: 'Use ChBody.', version }} loading={false} error={null} />)
+  expect(screen.getByText(`Index: ${version}`)).toBeInTheDocument()
+})

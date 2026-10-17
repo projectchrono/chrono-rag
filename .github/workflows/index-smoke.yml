@@ -1,0 +1,29 @@
+name: Published index smoke tests
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * *'
+permissions:
+  contents: read
+jobs:
+  install-and-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [main, '10.0.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e .
+      - name: Download and verify advertised channel
+        env:
+          CHANNEL: ${{ matrix.channel }}
+        run: |
+          python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL"
+          python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL" --if-missing
+          python -m chrono_rag.surfaces.cli search "create a rigid body box in pychrono" -k 1
+          python -m chrono_rag.eval.run_eval

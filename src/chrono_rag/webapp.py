@@ -37,6 +37,7 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     answer: str
+    version: str
     sources: list[str] = []
     insufficient: bool = False
     model: str | None = None
@@ -51,6 +52,7 @@ def search(body: SearchRequest) -> SearchResponse:
         res = run_answer(body.query, k=body.top_k, model=body.model, provider=body.provider)
         return SearchResponse(
             answer=res["answer"],
+            version=res["version"],
             sources=res["sources"],
             insufficient=res["insufficient"],
             model=res.get("model"),

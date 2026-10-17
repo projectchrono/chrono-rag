@@ -15,7 +15,7 @@ name: Build & publish index
 # slices, runs the eval gate, and cuts the release.
 on:
   schedule:
-    - cron: "0 6 1 * *"          # monthly, 1st at 06:00 UTC: refresh the main snapshot
+    - cron: "0 6 * * *"          # daily; skip when the indexed commit has not changed
   workflow_dispatch:
     inputs:
       chrono_ref:
@@ -26,7 +26,7 @@ permissions:
   contents: write                # create the release and upload assets
 
 concurrency:
-  group: index-release
+  group: index-release-${{ github.event.inputs.chrono_ref || 'main' }}
   cancel-in-progress: false
 
 env:
@@ -81,9 +81,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           CH="${{ steps.names.outputs.channel }}"; SHA7="${{ steps.names.outputs.short_sha }}"
-          if gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,assets \
-               --jq ".[] | select(.tagName | startswith(\"index-${CH}-\")) | .assets[].name" 2>/dev/null \
-             | grep -q -- "-${SHA7}\.zip$"; then
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.draft == false and .prerelease == false) | select(.tag_name | startswith(\"index-${CH}-\")) | .assets[].name" > published-assets.txt
+          if grep -q -- "-${SHA7}\.zip$" published-assets.txt; then
             echo "already published for ${CH} @ ${SHA7}; skipping"; echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -144,6 +144,7 @@ jobs:
       - name: Merge shards
         run: python -u -m chrono_rag.preprocess.merge_shards index shards/shard-*
       - name: Retrieval eval gate
+        shell: bash  # explicit bash enables pipefail, so tee cannot hide a failed eval
         env:
           CHRONO_RAG_INDEX: index
         run: python -u -m chrono_rag.eval.run_eval | tee eval.txt   # non-zero exit fails the build
@@ -177,3 +178,12 @@ jobs:
           files: |
             ${{ needs.prepare.outputs.asset }}
             ${{ needs.prepare.outputs.asset }}.sha256
+      - name: Verify the published download through the public CLI
+        env:
+          CHRONO_RAG_INDEX: downloaded-index
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          EXPECTED_COMMIT: ${{ needs.prepare.outputs.sha }}
+        run: |
+          python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL"
+          python -c "import json,os; m=json.load(open('downloaded-index/manifest.json')); assert m['commit']==os.environ['EXPECTED_COMMIT']; assert m['channel']==os.environ['CHANNEL']"
+          python -m chrono_rag.surfaces.cli search "create a rigid body box in pychrono" -k 1

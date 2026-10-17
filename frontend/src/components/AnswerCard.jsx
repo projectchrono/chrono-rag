@@ -16,6 +16,7 @@ export function AnswerCard({ result, loading, error }) {
       {!loading && error && <p className={styles.error} role="alert">{error}</p>}
       {!loading && !error && result && (
         <>
+          {result.version && <p className={styles.footer}>Index: {result.version}</p>}
           {result.insufficient && (
             <p className={styles.notice}>
               Nothing sufficiently relevant was found in the indexed Chrono code, so no
