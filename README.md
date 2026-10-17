@@ -20,7 +20,11 @@ cd chrono-rag
 ```
 
 The script creates a conda env named `chrono-rag`, installs the tool into it, and downloads the
-prebuilt search index (about 50 MB). (If PowerShell refuses to run scripts, use
+prebuilt development search index (about 50 MB). Existing environments and valid indexes
+of the requested channel are reused; failed steps stop setup without reporting success.
+Stop running MCP/editor connections and web servers before rerunning setup, especially on
+Windows where active processes can lock the package's executables during installation.
+The scripts work from any working directory. (If PowerShell refuses to run scripts, use
 `powershell -ExecutionPolicy Bypass -File .\setup.ps1`.) Then:
 
 ```bash
@@ -33,12 +37,23 @@ once (about 130 MB, network needed that one time). If anything misbehaves, `chro
 what is missing and how to fix it.
 
 **Which Chrono version does it know?** The default index is a snapshot of Chrono's `main` branch,
-rebuilt monthly, and every answer states the snapshot date. If you use the PyChrono 10.0.0 release
-from conda, switch to the matching index once:
+checked daily for changes, and every answer states the snapshot date. It is a dated snapshot,
+not a live query against GitHub. If you use the PyChrono 10.0.0 release from conda, select its
+index during initial setup instead:
+
+```bash
+./setup.sh --channel 10.0.0       # Windows PowerShell:  .\setup.ps1 -Channel 10.0.0
+```
+
+If you already downloaded the development index, switch explicitly:
 
 ```bash
 chrono-rag get-index --channel 10.0.0 --force
 ```
+
+Restart existing MCP/editor or web-server processes after switching indexes: they cache the
+loaded index. A failed download leaves your previous index intact. Setup will refuse to
+silently reuse an index from a different channel; use the explicit switch command above.
 
 ## Get written answers
 
@@ -116,16 +131,24 @@ Two prebuilt indexes are published as GitHub Releases and every answer says whic
 
 | channel | built from | for whom |
 |---|---|---|
-| `main` (default) | Chrono's development branch, dated snapshot, rebuilt monthly | anyone building Chrono from source; covers post-10.0 work such as the AMD ROCm/HIP GPU backend |
+| `main` (default) | Chrono's development branch, dated snapshot, checked daily and rebuilt when the commit changes | anyone building Chrono from source; covers post-10.0 work such as the AMD ROCm/HIP GPU backend |
 | `10.0.0` | the 10.0.0 release tag | users of the conda PyChrono 10.0.0 package |
 
-`.github/workflows/index-release.yml` rebuilds `main` on the first of every month (the embedding is
+`.github/workflows/index-release.yml` checks `main` daily at 06:00 UTC (the embedding is
 split over 8 parallel jobs and merged, since one hosted runner is too slow), gates on the
 retrieval eval, and publishes `index-main-YYYY-MM-DD` with assets `chrono-rag-index-main-<date>-<sha>.zip`
-(+ `.sha256`); `chrono-rag get-index` takes the newest release of the requested channel. Any Chrono
+(+ `.sha256`); `chrono-rag get-index` takes the newest release of the requested channel, including
+older pinned channels beyond the first page of releases. Existing local installations do not
+update automatically: use `chrono-rag get-index --channel main --force` to refresh yours, then
+restart MCP/web processes. Any Chrono
 tag can be indexed by running that workflow by hand with the tag as `chrono_ref` ("Run workflow" in
 the Actions tab); its assets are `chrono-rag-index-<tag>-<sha>.zip`. GitHub pauses scheduled workflows
-on repositories with no activity for 60 days; re-enable from the Actions tab if the monthly build stops.
+on repositories with no activity for 60 days; re-enable from the Actions tab if builds stop.
+The publication workflow tests the released download. A separate daily smoke test downloads
+both advertised channels and runs their retrieval evaluations.
+
+The legacy `index-8baad0e` artifact predates versioned channels and was built from a development
+commit, despite its original PyChrono 10.0 label. Use the `10.0.0` channel for release-matched code.
 
 ### Build your own index
 
@@ -174,6 +197,7 @@ python -m chrono_rag.preprocess.build_forum_index path/to/topics.mbox index-foru
 | `CHRONO_RAG_EMBED_MODEL` | embedding model (index build only) | `BAAI/bge-small-en-v1.5` |
 | `CHRONO_RAG_VERSION` | Chrono version number override (index build only) | parsed from the checkout |
 | `CHRONO_RAG_ENV` | conda env name used by the setup scripts | `chrono-rag` |
+| `CHRONO_RAG_CHANNEL` | index channel used by the setup scripts (or pass their channel option) | `main` |
 
 ### Developing
 
@@ -182,7 +206,8 @@ pytest                                        # unit tests
 python -m chrono_rag.eval.run_eval            # retrieval quality check against the loaded index
 ```
 
-The setup script is equivalent to `conda create -n chrono-rag python=3.12` followed by
-`pip install -e ".[llm,web,mcp,dev]"` inside that env. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The setup scripts create a Python 3.12 environment only if absent, install
+`.[llm,web,mcp,dev]` inside it, then download or validate the selected index. Do not use
+`conda create -y` to update an existing environment. See [CONTRIBUTING.md](CONTRIBUTING.md).
 Licensing and attribution: [LICENSE](LICENSE) and [NOTICE](NOTICE); data provenance and privacy:
 [DATA.md](DATA.md); security and removal reports: [SECURITY.md](SECURITY.md).

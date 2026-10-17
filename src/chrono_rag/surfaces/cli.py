@@ -79,6 +79,7 @@ def _cmd_ask(query: str, k: int, model: str | None, provider: str | None) -> int
         return 1
 
     print(res["answer"])
+    print(f"\n[scope] {res['version']}")
     if res.get("sources"):
         print("\n[sources] " + ", ".join(res["sources"]))
     if res.get("model"):
@@ -111,22 +112,29 @@ DEFAULT_CHANNEL = "main"
 
 def _find_release_asset(channel: str) -> tuple[str, str | None]:
     """Return (zip_url, sha256_url_or_None) for the newest asset of `channel`."""
-    url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases?per_page=50"
-    with _http_get(url) as resp:
-        releases = json.load(resp)
     prefix = f"chrono-rag-index-{channel}-"
-    for rel in releases:  # newest first
-        zip_url, sha_url = None, None
-        for a in rel.get("assets", []):
-            name = a.get("name", "")
-            if not name.startswith(prefix):
+    page = 1
+    while True:
+        url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases?per_page=100&page={page}"
+        with _http_get(url) as resp:
+            releases = json.load(resp)
+        for rel in releases:  # newest first; older release channels can be many pages back
+            if rel.get("draft") or rel.get("prerelease"):
                 continue
-            if name.endswith(".zip"):
-                zip_url = a["browser_download_url"]
-            elif name.endswith(".sha256"):
-                sha_url = a["browser_download_url"]
-        if zip_url:
-            return zip_url, sha_url
+            zip_url, sha_url = None, None
+            for a in rel.get("assets", []):
+                name = a.get("name", "")
+                if not name.startswith(prefix):
+                    continue
+                if name.endswith(".zip"):
+                    zip_url = a["browser_download_url"]
+                elif name.endswith(".sha256"):
+                    sha_url = a["browser_download_url"]
+            if zip_url:
+                return zip_url, sha_url
+        if len(releases) < 100:
+            break
+        page += 1
     raise FileNotFoundError(
         f"no '{channel}' index asset found on https://github.com/{config.GITHUB_REPO}/releases "
         f"(channels: main, a Chrono release tag such as 10.0.0, or forum)"
@@ -181,24 +189,63 @@ def _extract_index(zip_path: str, dest: str) -> None:
                 shutil.copyfileobj(src, out)
 
 
-def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL) -> int:
+def _validate_index(path: str, channel: str) -> dict:
+    """Validate before reusing or replacing an index; no embedding model download."""
+    from chrono_rag.core.store import load_store
+
+    with open(os.path.join(path, "manifest.json"), encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    if channel != "forum" and manifest.get("channel") != channel:
+        raise ValueError(f"index channel is {manifest.get('channel', 'unknown')!r}, "
+                         f"but {channel!r} was requested. Use --force to switch channels.")
+    store = load_store(path)
+    if not len(store) or not store.model_name or manifest.get("n_chunks") != len(store):
+        raise ValueError("index is empty or its manifest is incomplete/inconsistent")
+    return manifest
+
+
+def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL,
+                   if_missing: bool = False) -> int:
     if forum:
         channel = "forum"
         dest = os.path.join(os.path.dirname(config.index_dir()), "index-forum")
     else:
         dest = config.index_dir()
-    if os.path.exists(os.path.join(dest, "embeddings.npy")) and not force:
-        print(f"an index already exists at {dest}; re-run with --force to replace it.",
-              file=sys.stderr)
-        return 1
-
     try:
+        if os.path.exists(dest) and os.listdir(dest) and not force:
+            if not if_missing:
+                raise ValueError(f"an index already exists at {dest}; re-run with --force to replace it.")
+            manifest = _validate_index(dest, channel)
+            print(f"[get-index] keeping verified {channel} index at {dest}")
+            print(f"[get-index] scope: {manifest.get('version_label', channel)}")
+            return 0
         zip_url, sha_url = _find_release_asset(channel)
-        with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        # Stage beside dest so replacement stays on the same filesystem. A failed
+        # download/checksum/extraction/validation never touches the installed index.
+        with tempfile.TemporaryDirectory(dir=os.path.dirname(dest)) as tmp:
             zp = os.path.join(tmp, "index.zip")
             _download(zip_url, zp)
             _verify_sha256(zp, sha_url)
-            _extract_index(zp, dest)
+            staged = os.path.join(tmp, "index")
+            _extract_index(zp, staged)
+            _validate_index(staged, channel)
+            had_previous = os.path.exists(dest)
+            backup = None
+            if had_previous:
+                # Keep rollback data outside the staging context: if restoring
+                # it also fails, TemporaryDirectory must not delete the old index.
+                backup = tempfile.mkdtemp(prefix=".chrono-rag-previous-", dir=os.path.dirname(dest))
+                os.rmdir(backup)
+                os.replace(dest, backup)
+            try:
+                os.replace(staged, dest)
+            except OSError:
+                if had_previous:
+                    os.replace(backup, dest)
+                raise
+            if backup:
+                shutil.rmtree(backup)
     except Exception as e:
         print(f"error: get-index failed: {e}", file=sys.stderr)
         print(f"You can also download it manually from "
@@ -397,7 +444,10 @@ def main(argv: list[str] | None = None) -> int:
                          "PyChrono users have)")
     pg.add_argument("--forum", action="store_true",
                     help="download the optional forum+examples index instead")
-    pg.add_argument("--force", action="store_true", help="replace an existing index")
+    replace = pg.add_mutually_exclusive_group()
+    replace.add_argument("--force", action="store_true", help="replace an existing index")
+    replace.add_argument("--if-missing", action="store_true",
+                         help="keep an existing valid index of the requested channel")
 
     sub.add_parser("doctor", help="check the local setup (index, model cache, keys)")
     sub.add_parser("mcp-config", help="print the editor (MCP) config entry with absolute paths")
@@ -408,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "ask":
         return _cmd_ask(" ".join(args.query), args.k, args.model, args.provider)
     if args.cmd == "get-index":
-        return _cmd_get_index(args.forum, args.force, args.channel)
+        return _cmd_get_index(args.forum, args.force, args.channel, args.if_missing)
     if args.cmd == "doctor":
         return _cmd_doctor()
     if args.cmd == "mcp-config":
