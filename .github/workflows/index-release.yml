@@ -3,7 +3,7 @@ name: Build & publish index
 # Builds a search index from a Chrono checkout, gates it on the retrieval eval,
 # and publishes it as a GitHub Release whose assets `chrono-rag get-index`
 # downloads. Two channels:
-#   main    - dated snapshot of Chrono's development branch (monthly, default)
+#   main    - dated snapshot of Chrono's development branch (daily, default)
 #   <tag>   - a Chrono release such as 10.0.0 (what conda PyChrono users run)
 # Asset naming is the contract with cli.py:_find_release_asset:
 #   chrono-rag-index-<channel>-<suffix>.zip (+ .sha256)
