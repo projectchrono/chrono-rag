@@ -7,7 +7,8 @@ conda run -n chrono-rag chrono-rag search "$ARGUMENTS"
 ```
 
 Then report the returned chunks (file paths, line numbers, and snippets) to the user.
-Results target **PyChrono 10.0**. If the search reports low confidence / insufficient
+Results target the Chrono checkout named in the printed scope line (by default a dated snapshot
+of Chrono main); report that scope to the user. If the search reports low confidence / insufficient
 evidence, tell the user to include a class or function name (e.g. `ChBodyEasyBox`) or the
 exact error message.
 

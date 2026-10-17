@@ -5,9 +5,10 @@ answers grounded in Chrono's own source code, demos, and documentation, with the
 on your machine, needs no account or API key to start, and works from a terminal, from your code
 editor, or from a local web page.
 
-How it works, in one sentence: for each question it searches an index of the Chrono codebase, hands
-only the matching pieces to an LLM, and has the LLM answer from those; if nothing relevant is found it
-says so instead of guessing.
+How it works: `search` and the MCP server return matching excerpts from a local Chrono index.
+`ask` and the web app retrieve first, then use an LLM with your cloud API key or a configured local
+LLM server to write an answer; if retrieval finds insufficient evidence, they do not call an LLM.
+In editor mode, the editor's LLM decides whether to call the MCP tools and how to use the results.
 
 ## Install (about 5 minutes)
 

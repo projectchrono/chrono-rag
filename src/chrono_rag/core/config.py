@@ -9,9 +9,10 @@ from typing import Optional
 # to update if the repository moves to another organization.
 GITHUB_REPO = "projectchrono/chrono-rag"
 
-# Fallback user-facing scope label; the index manifest's `version_label`
-# (written at build time from the indexed Chrono checkout) takes precedence.
-VERSION_LABEL = "PyChrono 10.0"
+# Fallback user-facing scope label when the loaded index's manifest provides
+# no nonempty `version_label`. A nonempty manifest label takes precedence.
+# The fallback claims no Chrono version or checkout.
+VERSION_LABEL = "Chrono/PyChrono (index scope unknown)"
 
 # Tunable retrieval constants, validated against the eval harness
 # (chrono_rag.eval.run_eval on the 10.0 index: recall@8 0.93, MRR 0.72, all

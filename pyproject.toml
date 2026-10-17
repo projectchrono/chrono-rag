@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chrono-rag"
 version = "1.0.0"
-description = "Local retrieval assistant for Project Chrono / PyChrono 10.0: search Chrono's own code and docs, get cited answers."
+description = "Local retrieval assistant for Project Chrono / PyChrono: search code and docs from dated main snapshots or release indexes, with citations."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
