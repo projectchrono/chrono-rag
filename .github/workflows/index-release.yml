@@ -184,6 +184,18 @@ jobs:
           CHANNEL: ${{ needs.prepare.outputs.channel }}
           EXPECTED_COMMIT: ${{ needs.prepare.outputs.sha }}
         run: |
-          python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL"
-          python -c "import json,os; m=json.load(open('downloaded-index/manifest.json')); assert m['commit']==os.environ['EXPECTED_COMMIT']; assert m['channel']==os.environ['CHANNEL']"
-          python -m chrono_rag.surfaces.cli search "create a rigid body box in pychrono" -k 1
+          # GitHub's public release listing can briefly lag the successful upload.
+          # Retry discovery, but never accept a download of the previous commit.
+          for attempt in {1..6}; do
+            if python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL" --force && \
+               python -c "import json,os; m=json.load(open('downloaded-index/manifest.json')); assert m['commit']==os.environ['EXPECTED_COMMIT']; assert m['channel']==os.environ['CHANNEL']"; then
+              python -m chrono_rag.surfaces.cli search "create a rigid body box in pychrono" -k 1
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then
+              echo "Published index not yet visible; retrying in 10 seconds ($attempt/6)."
+              sleep 10
+            fi
+          done
+          echo "Published index could not be verified after six attempts." >&2
+          exit 1
