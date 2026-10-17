@@ -3,8 +3,11 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import shutil
+import stat
 import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -138,8 +141,11 @@ def test_channel_switch_preserves_old_index_on_failure(monkeypatch, tmp_path, fa
         if failure == 'checksum':
             raise RuntimeError('sha256 mismatch')
     original_replace = cli.os.replace
+    promotions = []
     def replace(src, dst):
-        if failure == 'replace' and Path(src).name == 'index':
+        # Fail only the first move into dest (the promotion), so the rollback move can run.
+        if failure == 'replace' and Path(dst) == dest and not promotions:
+            promotions.append(src)
             raise OSError('replacement failed')
         return original_replace(src, dst)
     monkeypatch.setattr(cli, '_download', download)
@@ -149,3 +155,79 @@ def test_channel_switch_preserves_old_index_on_failure(monkeypatch, tmp_path, fa
     manifest = json.loads((dest / 'manifest.json').read_text())
     assert manifest['channel'] == ('main' if failure else '10.0.0')
     assert (dest / 'sentinel').exists() == bool(failure)
+    assert not list(tmp_path.glob('.chrono-rag-*'))  # no staging or backup leftovers
+
+
+def fake_release(monkeypatch, tmp_path, dest, channel='10.0.0'):
+    incoming = tmp_path / 'incoming'
+    write_index(incoming / 'index', channel)
+    archive = shutil.make_archive(str(tmp_path / 'download'), 'zip', incoming)
+    monkeypatch.setattr(cli.config, 'index_dir', lambda: str(dest))
+    monkeypatch.setattr(cli, '_find_release_asset', lambda _: ('zip-url', 'sha-url'))
+    monkeypatch.setattr(cli, '_download', lambda url, path: shutil.copyfile(archive, path))
+    monkeypatch.setattr(cli, '_verify_sha256', lambda *args: None)
+
+
+def sddl(path):
+    """DACL of `path` as an SDDL string (Windows). Calls advapi32 directly: Windows PowerShell's
+    Get-Acl fails to load when spawned from a PowerShell 7 session, e.g. on CI runners."""
+    import ctypes
+    advapi32 = ctypes.WinDLL('advapi32', use_last_error=True)
+    kernel32 = ctypes.WinDLL('kernel32')
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    sd, text = ctypes.c_void_p(), ctypes.c_void_p()
+    DACL_SECURITY_INFORMATION, SE_FILE_OBJECT, SDDL_REVISION_1 = 4, 1, 1
+    err = advapi32.GetNamedSecurityInfoW(str(path), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+                                         None, None, None, None, ctypes.byref(sd))
+    assert err == 0, f'GetNamedSecurityInfoW({path}) failed: {err}'
+    try:
+        ok = advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            sd, SDDL_REVISION_1, DACL_SECURITY_INFORMATION, ctypes.byref(text), None)
+        assert ok, f'ConvertSecurityDescriptorToStringSecurityDescriptorW failed: {ctypes.get_last_error()}'
+        return ctypes.wstring_at(text.value)
+    finally:
+        kernel32.LocalFree(text)
+        kernel32.LocalFree(sd)
+
+
+@pytest.mark.parametrize('replace_existing', [False, True])
+def test_installed_index_gets_ordinary_permissions(monkeypatch, tmp_path, replace_existing):
+    """The index must be readable by whoever can read its parent folder.
+
+    Regression: staging inside a tempfile directory gave the index Python's owner-only
+    mkdtemp DACL on Windows (3.12.4+), locking the user out after an elevated or
+    scheduled-task install."""
+    parent = tmp_path / 'clone'
+    parent.mkdir()
+    dest = parent / 'index'
+    if replace_existing:
+        write_index(dest, 'main')
+    if sys.platform == 'win32':
+        # A distinctive inheritable ACE on the parent (Everyone, read) must reach the index.
+        subprocess.run(['icacls', str(parent), '/grant', '*S-1-1-0:(OI)(CI)R'], check=True, capture_output=True)
+    fake_release(monkeypatch, tmp_path, dest)
+    assert cli.main(['get-index', '--channel', '10.0.0', '--force']) == 0
+    if sys.platform == 'win32':
+        for path in (dest, dest / 'manifest.json'):
+            assert re.search(r'\(A;[A-Z]*ID[A-Z]*;[^;]*;;;WD\)', sddl(path)), (path, sddl(path))
+    else:
+        control = parent / 'control'
+        control.mkdir()
+        assert stat.S_IMODE(dest.stat().st_mode) == stat.S_IMODE(control.stat().st_mode)
+
+
+def test_leftover_backup_is_a_warning_not_a_failure(monkeypatch, tmp_path, capsys):
+    dest = tmp_path / 'index'
+    write_index(dest, 'main')
+    fake_release(monkeypatch, tmp_path, dest)
+    original_rmtree = cli.shutil.rmtree
+    def rmtree(path, *args, **kwargs):
+        if Path(path).name.startswith('.chrono-rag-previous-'):  # an old index this user cannot delete
+            if kwargs.get('ignore_errors'):
+                return
+            raise PermissionError(13, 'Access is denied', str(path))
+        return original_rmtree(path, *args, **kwargs)
+    monkeypatch.setattr(cli.shutil, 'rmtree', rmtree)
+    assert cli.main(['get-index', '--channel', '10.0.0', '--force']) == 0
+    assert json.loads((dest / 'manifest.json').read_text())['channel'] == '10.0.0'
+    assert 'could not delete the previous index' in capsys.readouterr().err

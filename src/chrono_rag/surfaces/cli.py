@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
 import zipfile
 
 from chrono_rag.core import config
@@ -220,32 +221,47 @@ def _cmd_get_index(forum: bool, force: bool, channel: str = DEFAULT_CHANNEL,
             print(f"[get-index] scope: {manifest.get('version_label', channel)}")
             return 0
         zip_url, sha_url = _find_release_asset(channel)
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        parent = os.path.dirname(dest)
+        os.makedirs(parent, exist_ok=True)
         # Stage beside dest so replacement stays on the same filesystem. A failed
         # download/checksum/extraction/validation never touches the installed index.
-        with tempfile.TemporaryDirectory(dir=os.path.dirname(dest)) as tmp:
-            zp = os.path.join(tmp, "index.zip")
-            _download(zip_url, zp)
-            _verify_sha256(zp, sha_url)
-            staged = os.path.join(tmp, "index")
-            _extract_index(zp, staged)
+        # The staged index is a plain mkdir, never a folder inside the TemporaryDirectory:
+        # on Windows, Python 3.12.4+ creates mkdtemp folders with an owner-only DACL that
+        # everything below inherits and the rename into place keeps. Installed from an
+        # elevated shell or a scheduled task (owner BUILTIN\Administrators), such an index
+        # locked out the user's own processes (python/cpython#157876). A plain mkdir
+        # inherits the parent's ACL on Windows and follows the umask on POSIX.
+        staged = os.path.join(parent, f".chrono-rag-staging-{uuid.uuid4().hex}")
+        os.mkdir(staged)
+        backup = None
+        try:
+            with tempfile.TemporaryDirectory(dir=parent) as tmp:
+                zp = os.path.join(tmp, "index.zip")
+                _download(zip_url, zp)
+                _verify_sha256(zp, sha_url)
+                _extract_index(zp, staged)
             _validate_index(staged, channel)
-            had_previous = os.path.exists(dest)
-            backup = None
-            if had_previous:
-                # Keep rollback data outside the staging context: if restoring
-                # it also fails, TemporaryDirectory must not delete the old index.
-                backup = tempfile.mkdtemp(prefix=".chrono-rag-previous-", dir=os.path.dirname(dest))
+            if os.path.exists(dest):
+                # Keep rollback data out of every cleanup path: if restoring it
+                # also fails, nothing here may delete the old index.
+                backup = tempfile.mkdtemp(prefix=".chrono-rag-previous-", dir=parent)
                 os.rmdir(backup)
                 os.replace(dest, backup)
             try:
                 os.replace(staged, dest)
             except OSError:
-                if had_previous:
+                if backup:
                     os.replace(backup, dest)
                 raise
-            if backup:
-                shutil.rmtree(backup)
+        finally:
+            shutil.rmtree(staged, ignore_errors=True)  # already gone after a successful swap
+        if backup:
+            # The new index is installed by now, so an undeletable old one (for example
+            # left locked by an elevated install) is a warning, not a failed install.
+            shutil.rmtree(backup, ignore_errors=True)
+            if os.path.exists(backup):
+                print(f"[get-index] warning: could not delete the previous index at {backup}; "
+                      "remove it by hand", file=sys.stderr)
     except Exception as e:
         print(f"error: get-index failed: {e}", file=sys.stderr)
         print(f"You can also download it manually from "
