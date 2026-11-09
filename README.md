@@ -55,6 +55,7 @@ chrono-rag get-index --channel 10.0.0 --force
 Restart existing MCP/editor or web-server processes after switching indexes: they cache the
 loaded index. A failed download leaves your previous index intact. Setup will refuse to
 silently reuse an index from a different channel; use the explicit switch command above.
+Set `GITHUB_TOKEN` or `GH_TOKEN` to raise the GitHub API rate limit for `get-index`.
 
 ## Get written answers
 

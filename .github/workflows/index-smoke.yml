@@ -14,13 +14,14 @@ jobs:
       matrix:
         channel: [main, '10.0.0']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: pip install -e .
       - name: Download and verify advertised channel
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           CHANNEL: ${{ matrix.channel }}
         run: |
           python -m chrono_rag.surfaces.cli get-index --channel "$CHANNEL"
