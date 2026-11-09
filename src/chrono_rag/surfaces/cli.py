@@ -14,12 +14,19 @@ Run (after `pip install -e .`):
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import hashlib
+import http.client
 import json
 import os
+import random
 import shutil
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.parse
 import uuid
 import zipfile
 
@@ -94,12 +101,106 @@ def _cmd_ask(query: str, k: int, model: str | None, provider: str | None) -> int
 # get-index
 # ---------------------------------------------------------------------------
 
-def _http_get(url: str):
-    """GET with a UA header (the GitHub API rejects UA-less requests)."""
+def _http_get(url: str, *, use_token: bool = True):
+    """Open one GET attempt; callers retry the entire response read too."""
     import urllib.request
 
-    req = urllib.request.Request(url, headers={"User-Agent": "chrono-rag"})
+    # The GitHub API rejects UA-less requests.
+    headers = {"User-Agent": "chrono-rag"}
+    if use_token and urllib.parse.urlsplit(url).netloc == "api.github.com" and url.startswith("https://"):
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    # Never authenticate browser_download_url: urllib forwards Authorization on
+    # redirects to the CDN, leaking the token. Assets use no REST API quota.
+    req = urllib.request.Request(url, headers=headers)
     return urllib.request.urlopen(req, timeout=60)
+
+
+def _retry_after(value: str | None, now: float) -> float:
+    if not value:
+        return 0
+    try:
+        return max(0, float(value))
+    except ValueError:
+        try:
+            return max(0, parsedate_to_datetime(value).timestamp() - now)
+        except (ValueError, TypeError, OverflowError):
+            return 0
+
+
+def _retry_get(url: str, request_name: str, consume):
+    """Allow four complete GET attempts, plus one rejected-token fallback."""
+    authenticated = (urllib.parse.urlsplit(url).netloc == "api.github.com"
+                     and url.startswith("https://")
+                     and bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")))
+    token_rejected = False
+    failures = 0
+    for attempt in range(1, 6):
+        try:
+            resp = _http_get(url, use_token=False) if token_rejected else _http_get(url)
+            with resp:
+                return consume(resp)
+        except (urllib.error.URLError, TimeoutError, ConnectionError,
+                http.client.IncompleteRead) as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code == 401 and authenticated:
+                error.close()
+                authenticated = False
+                token_rejected = True
+                # Public releases remain accessible when another tool's token is
+                # stale. Keep it disabled for all remaining attempts of this GET.
+                print("[get-index] warning: GitHub token was rejected; "
+                      "the request continued unauthenticated.", file=sys.stderr)
+                continue
+            failures += 1
+            now = time.time()
+            delay = 2 ** (failures - 1) + random.uniform(0, 1)
+            rate_hint = ""
+            if isinstance(error, urllib.error.HTTPError):
+                headers = error.headers or {}
+                reason = str(error.reason)
+                body = ""
+                try:
+                    if error.code == 403:
+                        body = error.read(8192).decode("utf-8", errors="replace")
+                except (OSError, http.client.HTTPException):
+                    pass  # Header/reason detection still works if the error body is lost.
+                finally:
+                    error.close()
+                rate_limited = error.code == 403 and (
+                    headers.get("X-RateLimit-Remaining") == "0"
+                    or "rate limit" in (reason + body).lower()
+                )
+                # Retry server overload and throttling, not missing assets or
+                # permission/auth failures (a plain 403 must remain an error).
+                retry = error.code in (429, 500, 502, 503, 504) or rate_limited
+                detail = f"HTTP {error.code}: {reason}"
+                delay = max(delay, _retry_after(headers.get("Retry-After"), now))
+                if rate_limited:
+                    rate_hint = (" The GitHub API rate limit for the supplied token was hit."
+                                 if authenticated else
+                                 " The unauthenticated GitHub API limit was hit; setting "
+                                 "GITHUB_TOKEN or GH_TOKEN raises it.")
+                    try:
+                        reset = float(headers["X-RateLimit-Reset"])
+                        reset_at = datetime.fromtimestamp(reset, timezone.utc)
+                    except (KeyError, ValueError, TypeError, OverflowError, OSError):
+                        rate_hint += " Reset time was not provided by GitHub."
+                    else:
+                        rate_hint += f" It resets at {reset_at:%Y-%m-%d %H:%M:%S UTC}."
+                        delay = max(delay, reset - now)
+            else:
+                retry = True
+                detail = f"{type(error).__name__}: {error}"
+            # Bound server-directed waits too: a shared-IP quota can be exhausted
+            # for an hour, so report the reset instead of hanging the CLI.
+            if not retry or failures == 4 or delay > 60:
+                wait_hint = " Retry wait exceeds 60 seconds; stopping." if retry and delay > 60 else ""
+                raise RuntimeError(
+                    f"{request_name} ({url}) failed after {attempt} "
+                    f"attempt{'s' if attempt != 1 else ''}: {detail}.{rate_hint}{wait_hint}"
+                ) from error
+            time.sleep(delay)
 
 
 # Release-asset naming is the one contract between the publishing workflow
@@ -117,8 +218,7 @@ def _find_release_asset(channel: str) -> tuple[str, str | None]:
     page = 1
     while True:
         url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases?per_page=100&page={page}"
-        with _http_get(url) as resp:
-            releases = json.load(resp)
+        releases = _retry_get(url, "GitHub releases API listing", json.load)
         for rel in releases:  # newest first; older release channels can be many pages back
             if rel.get("draft") or rel.get("prerelease"):
                 continue
@@ -144,16 +244,23 @@ def _find_release_asset(channel: str) -> tuple[str, str | None]:
 
 def _download(url: str, dest_path: str) -> None:
     print(f"[get-index] downloading {url.rsplit('/', 1)[-1]} ...")
-    with _http_get(url) as resp, open(dest_path, "wb") as out:
-        done = 0
-        while True:
-            block = resp.read(1 << 20)
-            if not block:
-                break
-            out.write(block)
-            done += len(block)
-            if done % (10 << 20) < (1 << 20):
-                print(f"[get-index]   {done / 1e6:.0f} MB ...")
+    def consume(resp):
+        # Each attempt truncates the file; a partial zip is never resumed/reused.
+        with open(dest_path, "wb") as out:
+            length = getattr(resp, "headers", {}).get("Content-Length")
+            done = 0
+            while True:
+                block = resp.read(1 << 20)
+                if not block:
+                    break
+                out.write(block)
+                done += len(block)
+                if done % (10 << 20) < (1 << 20):
+                    print(f"[get-index]   {done / 1e6:.0f} MB ...")
+            # read(size) can silently return EOF on a truncated HTTP response.
+            if length is not None and done < int(length):
+                raise ConnectionError(f"incomplete download: received {done} of {length} bytes")
+    _retry_get(url, ".zip download", consume)
     print(f"[get-index] downloaded {os.path.getsize(dest_path) / 1e6:.1f} MB")
 
 
@@ -161,8 +268,8 @@ def _verify_sha256(zip_path: str, sha_url: str | None) -> None:
     if not sha_url:
         print("[get-index] no .sha256 asset published; skipping checksum verification")
         return
-    with _http_get(sha_url) as resp:
-        expected = resp.read().decode("utf-8").split()[0].strip().lower()
+    expected = _retry_get(sha_url, ".sha256 fetch", lambda resp: resp.read())
+    expected = expected.decode("utf-8").split()[0].strip().lower()
     h = hashlib.sha256()
     with open(zip_path, "rb") as fh:
         for block in iter(lambda: fh.read(1 << 20), b""):
